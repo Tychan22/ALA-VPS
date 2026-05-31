@@ -227,6 +227,7 @@ app.get("/", (req, res) => res.json({ status: "ALA VPS online", version: "2.0.0"
 
 // Serve screenshots statically
 app.use("/screenshots", express.static(SCREENS_DIR));
+app.use(express.static(path.join(__dirname, "public")));
 
 // Unified webhook
 app.post("/signal", async (req, res) => {
