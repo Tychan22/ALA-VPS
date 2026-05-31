@@ -31,6 +31,43 @@ function readTrades() {
 function writeTrades(trades) {
   fs.writeFileSync(TRADES_FILE, JSON.stringify(trades, null, 2));
 }
+function getTradingDate() {
+  // Trading day schedule (EST):
+  // Sun 6PM - Mon 4PM = Monday
+  // Mon 6PM - Tue 4PM = Tuesday
+  // Tue 6PM - Wed 4PM = Wednesday
+  // Wed 6PM - Thu 4PM = Thursday
+  // Thu 6PM - Fri 4PM = Friday
+  // Fri 4PM - Sun 6PM = market closed
+  const now = new Date();
+  const estStr = now.toLocaleString("en-US", { timeZone: "America/New_York" });
+  const estDate = new Date(estStr);
+  const estHour = estDate.getHours();
+  const estDay  = estDate.getDay(); // 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
+
+  // Trading day labels by current EST day + hour:
+  // Sun any = Monday (market opened Sun 6PM)
+  // Mon 0-15 = Monday (still in Mon trading day that opened Sun 6PM)
+  // Mon 16+ = Tuesday (Mon 4PM cutoff passed, now Tue trading day)
+  // Tue 0-15 = Tuesday
+  // Tue 16+ = Wednesday
+  // etc.
+
+  if (estDay === 0) {
+    // Sunday always = Monday trading day
+    estDate.setDate(estDate.getDate() + 1);
+  } else if (estHour >= 16) {
+    // After 4PM cutoff = next trading day
+    estDate.setDate(estDate.getDate() + 1);
+  }
+  // Before 4PM = same calendar day = correct trading day already
+
+  const y = estDate.getFullYear();
+  const m = String(estDate.getMonth() + 1).padStart(2, "0");
+  const d = String(estDate.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 
 // ─── PENDING OPEN TRADES (in-memory, matched on close) ───────────────────────
 // key = symbol, value = { entry, sl, tp, session, ts, imgOpen }
@@ -131,7 +168,7 @@ async function handleOpen(req, res) {
     pending[symbol] = {
       symbol, entry, sl, tp,
       session: session || "—",
-      date: new Date().toISOString().split("T")[0],
+      date: getTradingDate(),
       ts: Date.now(),
       imgOpen,
     };
