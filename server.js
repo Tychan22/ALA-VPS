@@ -1,39 +1,48 @@
 require("dotenv").config();
-const express = require("express");
-const axios = require("axios");
+const express  = require("express");
+const axios    = require("axios");
+const fs       = require("fs");
+const path     = require("path");
+const FormData = require("form-data");
 
-const app = express();
+const app  = express();
 app.use(express.json());
+app.use(require("cors")());
 
-const PORT = process.env.PORT || 3000;
-
+const PORT             = process.env.PORT || 3000;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID;
 const CHART_IMG_KEY      = process.env.CHART_IMG_KEY;
 const WEBHOOK_SECRET     = process.env.WEBHOOK_SECRET;
 
-async function sendTelegram(text, imageUrl = null) {
-  const base = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
-  if (imageUrl) {
-    await axios.post(`${base}/sendPhoto`, {
-      chat_id: TELEGRAM_CHAT_ID,
-      photo: imageUrl,
-      caption: text,
-      parse_mode: "HTML",
-    });
-  } else {
-    await axios.post(`${base}/sendMessage`, {
-      chat_id: TELEGRAM_CHAT_ID,
-      text,
-      parse_mode: "HTML",
-    });
-  }
+// ─── FILE STORAGE ─────────────────────────────────────────────────────────────
+const TRADES_FILE  = path.join(__dirname, "trades.json");
+const SCREENS_DIR  = path.join(__dirname, "screenshots");
+
+if (!fs.existsSync(SCREENS_DIR)) fs.mkdirSync(SCREENS_DIR);
+
+function readTrades() {
+  try {
+    if (!fs.existsSync(TRADES_FILE)) return [];
+    return JSON.parse(fs.readFileSync(TRADES_FILE, "utf8"));
+  } catch { return []; }
 }
 
-async function getChartImage(symbol = "OANDA:XAUUSD", interval = "5") {
+function writeTrades(trades) {
+  fs.writeFileSync(TRADES_FILE, JSON.stringify(trades, null, 2));
+}
+
+// ─── PENDING OPEN TRADES (in-memory, matched on close) ───────────────────────
+// key = symbol, value = { entry, sl, tp, session, ts, imgOpen }
+const pending = {};
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+async function getChartBuffer() {
+  if (!CHART_IMG_KEY) return null;
   try {
-    const res = await axios.post("https://api.chart-img.com/v2/tradingview/layout-chart/elAti8iP",
-      { symbol: "OANDA:XAUUSD", interval: interval + "m" },
+    const res = await axios.post(
+      "https://api.chart-img.com/v2/tradingview/layout-chart/elAti8iP",
+      { symbol: "OANDA:XAUUSD", interval: "5m" },
       { headers: { "x-api-key": CHART_IMG_KEY, "content-type": "application/json" }, responseType: "arraybuffer" }
     );
     return Buffer.from(res.data);
@@ -43,17 +52,28 @@ async function getChartImage(symbol = "OANDA:XAUUSD", interval = "5") {
   }
 }
 
-async function sendTelegramPhoto(caption, imageBuffer) {
-  const FormData = require("form-data");
+function saveScreenshot(buffer, label) {
+  const fname = `${label}_${Date.now()}.png`;
+  const fpath = path.join(SCREENS_DIR, fname);
+  fs.writeFileSync(fpath, buffer);
+  return `/screenshots/${fname}`;
+}
+
+async function sendTelegram(text) {
+  await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    chat_id: TELEGRAM_CHAT_ID, text, parse_mode: "HTML",
+  });
+}
+
+async function sendTelegramPhoto(caption, buffer) {
   const form = new FormData();
   form.append("chat_id", TELEGRAM_CHAT_ID);
   form.append("caption", caption);
   form.append("parse_mode", "HTML");
-  form.append("photo", imageBuffer, { filename: "chart.png", contentType: "image/png" });
+  form.append("photo", buffer, { filename: "chart.png", contentType: "image/png" });
   await axios.post(
     `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
-    form,
-    { headers: form.getHeaders() }
+    form, { headers: form.getHeaders() }
   );
 }
 
@@ -64,18 +84,16 @@ function fmtPnl(val) {
 
 function authCheck(req, res) {
   if (!WEBHOOK_SECRET) return true;
-  const incoming = req.headers["x-ala-secret"];
-  if (incoming !== WEBHOOK_SECRET) {
+  if (req.headers["x-ala-secret"] !== WEBHOOK_SECRET) {
     res.status(401).json({ error: "Unauthorized" });
     return false;
   }
   return true;
 }
 
-// ─── HANDLERS ──────────────────────────────────────────────────────────────
-
+// ─── OPEN HANDLER ─────────────────────────────────────────────────────────────
 async function handleOpen(req, res) {
-  const { symbol = "XAUUSD", interval = "5", entry, sl, tp, timestamp } = req.body;
+  const { symbol = "XAUUSD", interval = "5", entry, sl, tp, session, timestamp } = req.body;
   console.log("[OPEN]", req.body);
 
   const time = timestamp
@@ -98,12 +116,27 @@ async function handleOpen(req, res) {
   ].join("\n");
 
   try {
-    const chartBuffer = CHART_IMG_KEY ? await getChartImage(`OANDA:${symbol}`, interval) : null;
+    const chartBuffer = await getChartBuffer();
+
+    // Save open screenshot
+    let imgOpen = null;
     if (chartBuffer) {
+      imgOpen = saveScreenshot(chartBuffer, `open_${symbol}`);
       await sendTelegramPhoto(msg, chartBuffer);
     } else {
       await sendTelegram(msg);
     }
+
+    // Store pending trade — matched on close
+    pending[symbol] = {
+      symbol, entry, sl, tp,
+      session: session || "—",
+      date: new Date().toISOString().split("T")[0],
+      ts: Date.now(),
+      imgOpen,
+    };
+
+    console.log(`[OPEN] Pending trade stored for ${symbol}, imgOpen: ${imgOpen}`);
     res.json({ ok: true, action: "open", symbol });
   } catch (err) {
     console.error("[OPEN] Error:", err.message);
@@ -111,9 +144,11 @@ async function handleOpen(req, res) {
   }
 }
 
+// ─── CLOSE HANDLER ────────────────────────────────────────────────────────────
 async function handleClose(req, res, code) {
-  const { symbol = "XAUUSD", entry, exit, tp, sl, timestamp } = req.body;
-  const isWin = code === 2;
+  const { symbol = "XAUUSD", entry, exit, tp, sl, session, timestamp } = req.body;
+  const isWin  = code === 2;
+  const result = isWin ? "WIN" : "LOSS";
   console.log("[CLOSE]", req.body);
 
   const time = timestamp
@@ -121,10 +156,8 @@ async function handleClose(req, res, code) {
     : new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour12: false });
 
   const exitPrice = exit ?? (isWin ? tp : sl) ?? "—";
-  const pnlRaw = entry && exitPrice ? parseFloat(exitPrice) - parseFloat(entry) : null;
-  const pnlStr = pnlRaw !== null ? fmtPnl(pnlRaw) : "—";
-  const emoji  = isWin ? "✅" : "❌";
-  const result = isWin ? "WIN" : "LOSS";
+  const pnlStr    = entry && exitPrice ? fmtPnl(parseFloat(exitPrice) - parseFloat(entry)) : "—";
+  const emoji     = isWin ? "✅" : "❌";
 
   const msg = [
     `${emoji} <b>ALA CLOSED — ${result} ${symbol}</b>`,
@@ -137,7 +170,51 @@ async function handleClose(req, res, code) {
   ].join("\n");
 
   try {
-    await sendTelegram(msg);
+    // Grab close screenshot
+    const chartBuffer = await getChartBuffer();
+    let imgClose = null;
+    if (chartBuffer) {
+      imgClose = saveScreenshot(chartBuffer, `close_${symbol}`);
+      await sendTelegramPhoto(msg, chartBuffer);
+    } else {
+      await sendTelegram(msg);
+    }
+
+    // Match to pending open trade
+    const openTrade = pending[symbol] || {};
+    const imgOpen   = openTrade.imgOpen || null;
+    delete pending[symbol];
+
+    // Build trade record
+    const pen    = openTrade;
+    const tradeEntry = entry || pen.entry;
+    const tradeSL    = sl    || pen.sl;
+    const tradeTP    = tp    || pen.tp;
+    const rr         = tradeEntry && tradeSL && tradeTP
+      ? (Math.abs(parseFloat(tradeTP) - parseFloat(tradeEntry)) / Math.abs(parseFloat(tradeEntry) - parseFloat(tradeSL))).toFixed(2)
+      : null;
+
+    const trade = {
+      symbol,
+      date:    pen.date || new Date().toISOString().split("T")[0],
+      session: session  || pen.session || "—",
+      entry:   tradeEntry,
+      sl:      tradeSL,
+      tp:      tradeTP,
+      exit:    exitPrice,
+      result,
+      rr,
+      imgOpen,
+      imgClose,
+      ts:      pen.ts || Date.now(),
+      tsClose: Date.now(),
+    };
+
+    const trades = readTrades();
+    trades.push(trade);
+    writeTrades(trades);
+
+    console.log(`[CLOSE] Trade logged. imgOpen: ${imgOpen} imgClose: ${imgClose}`);
     res.json({ ok: true, action: "close", result, symbol });
   } catch (err) {
     console.error("[CLOSE] Error:", err.message);
@@ -145,26 +222,33 @@ async function handleClose(req, res, code) {
   }
 }
 
-// ─── ROUTES ────────────────────────────────────────────────────────────────
+// ─── ROUTES ───────────────────────────────────────────────────────────────────
+app.get("/", (req, res) => res.json({ status: "ALA VPS online", version: "2.0.0" }));
 
-app.get("/", (req, res) => {
-  res.json({ status: "ALA VPS online", version: "1.1.0" });
-});
+// Serve screenshots statically
+app.use("/screenshots", express.static(SCREENS_DIR));
 
-// Single unified webhook — TradingView sends everything here
-// action codes: 1 = open, 2 = close TP (WIN), 3 = close SL (LOSS)
+// Unified webhook
 app.post("/signal", async (req, res) => {
   if (!authCheck(req, res)) return;
   const code = parseInt(req.body.action);
-  if (code === 1)           return handleOpen(req, res);
+  if (code === 1)               return handleOpen(req, res);
   if (code === 2 || code === 3) return handleClose(req, res, code);
   return res.status(400).json({ ok: false, error: `Unknown action: ${req.body.action}` });
 });
 
-// Legacy endpoints (for manual test.js usage)
+// Legacy
 app.post("/signal/open",  async (req, res) => { if (!authCheck(req, res)) return; return handleOpen(req, res); });
 app.post("/signal/close", async (req, res) => { if (!authCheck(req, res)) return; return handleClose(req, res, 2); });
 
-app.listen(PORT, () => {
-  console.log(`✅ ALA VPS listening on port ${PORT}`);
+// Trade log endpoints
+app.get("/trades", (req, res) => res.json(readTrades()));
+app.post("/log", (req, res) => {
+  const trade  = { ...req.body, ts: req.body.ts || Date.now() };
+  const trades = readTrades();
+  trades.push(trade);
+  writeTrades(trades);
+  res.json({ ok: true, total: trades.length });
 });
+
+app.listen(PORT, () => console.log(`✅ ALA VPS listening on port ${PORT}`));
