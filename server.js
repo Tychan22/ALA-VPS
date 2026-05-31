@@ -30,10 +30,10 @@ async function sendTelegram(text, imageUrl = null) {
   }
 }
 
-async function getChartImage(symbol = "FOREXCOM:XAUUSD", interval = "5") {
+async function getChartImage(symbol = "OANDA:XAUUSD", interval = "5") {
   try {
     const res = await axios.post("https://api.chart-img.com/v2/tradingview/layout-chart/elAti8iP",
-      { symbol, interval: interval + "m", width: 800, height: 500, theme: "dark" },
+      { symbol: "OANDA:XAUUSD", interval: interval + "m" },
       { headers: { "x-api-key": CHART_IMG_KEY, "content-type": "application/json" }, responseType: "arraybuffer" }
     );
     return Buffer.from(res.data);
