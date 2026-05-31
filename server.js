@@ -30,10 +30,10 @@ async function sendTelegram(text, imageUrl = null) {
   }
 }
 
-async function getChartImage(symbol = "FOREXCOM:XAUUSD", interval = "5") {
+async function getChartImage(symbol = "OANDA:XAUUSD", interval = "5") {
   try {
     const res = await axios.get("https://api.chart-img.com/v1/tradingview/advanced-chart", {
-      params: { symbol, interval, width: 800, height: 500, theme: "dark" },
+      params: { symbol, interval: interval + 'm', width: 800, height: 500, theme: "dark" },
       headers: { Authorization: `Bearer ${CHART_IMG_KEY}` },
       responseType: "arraybuffer",
     });
@@ -99,7 +99,7 @@ async function handleOpen(req, res) {
   ].join("\n");
 
   try {
-    const chartBuffer = CHART_IMG_KEY ? await getChartImage(`FOREXCOM:${symbol}`, interval) : null;
+    const chartBuffer = CHART_IMG_KEY ? await getChartImage(`OANDA:${symbol}`, interval) : null;
     if (chartBuffer) {
       await sendTelegramPhoto(msg, chartBuffer);
     } else {
