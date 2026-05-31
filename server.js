@@ -7,21 +7,13 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// ─── Config ────────────────────────────────────────────────────────────────
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID;
 const CHART_IMG_KEY      = process.env.CHART_IMG_KEY;
-const WEBHOOK_SECRET     = process.env.WEBHOOK_SECRET; // optional auth header
+const WEBHOOK_SECRET     = process.env.WEBHOOK_SECRET;
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-
-/**
- * Send a Telegram message, optionally with a chart image attached.
- * If imageUrl is provided, sends as photo caption; otherwise sends as text.
- */
 async function sendTelegram(text, imageUrl = null) {
   const base = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
-
   if (imageUrl) {
     await axios.post(`${base}/sendPhoto`, {
       chat_id: TELEGRAM_CHAT_ID,
@@ -38,29 +30,12 @@ async function sendTelegram(text, imageUrl = null) {
   }
 }
 
-/**
- * Request a chart screenshot from CHART-IMG.
- * Returns the hosted image URL string, or null on failure.
- *
- * Docs: https://chart-img.com/docs
- * Free tier: symbol + interval are enough; layout is optional.
- */
 async function getChartImage(symbol = "OANDA:XAUUSD", interval = "5") {
   try {
     const res = await axios.get("https://api.chart-img.com/v1/tradingview/advanced-chart", {
-      params: {
-        key: CHART_IMG_KEY,
-        symbol,
-        interval,
-        width: 800,
-        height: 500,
-        theme: "dark",
-      },
+      params: { key: CHART_IMG_KEY, symbol, interval, width: 800, height: 500, theme: "dark" },
       responseType: "arraybuffer",
     });
-
-    // CHART-IMG returns raw image bytes — upload to Telegram as buffer
-    // We'll send it as a multipart upload instead of a URL
     return Buffer.from(res.data);
   } catch (err) {
     console.error("[CHART-IMG] Failed:", err.message);
@@ -68,9 +43,6 @@ async function getChartImage(symbol = "OANDA:XAUUSD", interval = "5") {
   }
 }
 
-/**
- * Send Telegram photo from a Buffer (for CHART-IMG binary response).
- */
 async function sendTelegramPhoto(caption, imageBuffer) {
   const FormData = require("form-data");
   const form = new FormData();
@@ -78,7 +50,6 @@ async function sendTelegramPhoto(caption, imageBuffer) {
   form.append("caption", caption);
   form.append("parse_mode", "HTML");
   form.append("photo", imageBuffer, { filename: "chart.png", contentType: "image/png" });
-
   await axios.post(
     `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
     form,
@@ -86,15 +57,13 @@ async function sendTelegramPhoto(caption, imageBuffer) {
   );
 }
 
-/** Format a USD number with + sign for PnL */
 function fmtPnl(val) {
   const n = parseFloat(val);
   return isNaN(n) ? "—" : `${n >= 0 ? "+" : ""}$${n.toFixed(2)}`;
 }
 
-/** Optional: validate webhook secret header */
 function authCheck(req, res) {
-  if (!WEBHOOK_SECRET) return true; // not configured, skip
+  if (!WEBHOOK_SECRET) return true;
   const incoming = req.headers["x-ala-secret"];
   if (incoming !== WEBHOOK_SECRET) {
     res.status(401).json({ error: "Unauthorized" });
@@ -103,33 +72,12 @@ function authCheck(req, res) {
   return true;
 }
 
-// ─── Routes ────────────────────────────────────────────────────────────────
+// ─── HANDLERS ──────────────────────────────────────────────────────────────
 
-app.get("/", (req, res) => {
-  res.json({ status: "ALA VPS online", version: "1.0.0" });
-});
+async function handleOpen(req, res) {
+  const { symbol = "XAUUSD", interval = "5", entry, sl, tp, timestamp } = req.body;
+  console.log("[OPEN]", req.body);
 
-/**
- * POST /signal/open
- *
- * Expected TradingView alert JSON payload:
- * {
- *   "symbol":    "XAUUSD",
- *   "interval":  "5",
- *   "entry":     "2345.50",
- *   "sl":        "2340.00",
- *   "tp":        "2356.00",
- *   "session":   "London",
- *   "timestamp": "2024-01-15T06:32:00Z"   // optional
- * }
- */
-app.post("/signal/open", async (req, res) => {
-  if (!authCheck(req, res)) return;
-
-  const { symbol = "XAUUSD", interval = "5", entry, sl, tp, session, timestamp } = req.body;
-  console.log("[/signal/open]", req.body);
-
-  // Build message
   const time = timestamp
     ? new Date(timestamp).toLocaleString("en-US", { timeZone: "America/New_York", hour12: false })
     : new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour12: false });
@@ -146,77 +94,77 @@ app.post("/signal/open", async (req, res) => {
     `🎯 <b>TP:</b>     ${tp ?? "—"}`,
     `📐 <b>R:R:</b>    1:${rr}`,
     ``,
-    `🕐 <b>Session:</b> ${session ?? "—"}`,
-    `⏱  <b>Time:</b>   ${time} EST`,
+    `⏱  <b>Time:</b>  ${time} EST`,
   ].join("\n");
 
   try {
-    // Fetch chart screenshot
     const chartBuffer = CHART_IMG_KEY ? await getChartImage(`OANDA:${symbol}`, interval) : null;
-
     if (chartBuffer) {
       await sendTelegramPhoto(msg, chartBuffer);
     } else {
       await sendTelegram(msg);
     }
-
     res.json({ ok: true, action: "open", symbol });
   } catch (err) {
-    console.error("[/signal/open] Error:", err.message);
+    console.error("[OPEN] Error:", err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
-});
+}
 
-/**
- * POST /signal/close
- *
- * Expected payload:
- * {
- *   "symbol":    "XAUUSD",
- *   "entry":     "2345.50",
- *   "exit":      "2356.00",
- *   "pnl":       "+210.00",
- *   "result":    "WIN",          // WIN | LOSS | BE
- *   "session":   "London",
- *   "duration":  "14m",          // optional
- *   "timestamp": "2024-01-15T06:46:00Z"
- * }
- */
-app.post("/signal/close", async (req, res) => {
-  if (!authCheck(req, res)) return;
-
-  const { symbol = "XAUUSD", entry, exit, pnl, result, session, duration, timestamp } = req.body;
-  console.log("[/signal/close]", req.body);
+async function handleClose(req, res, code) {
+  const { symbol = "XAUUSD", entry, exit, tp, sl, timestamp } = req.body;
+  const isWin = code === 2;
+  console.log("[CLOSE]", req.body);
 
   const time = timestamp
     ? new Date(timestamp).toLocaleString("en-US", { timeZone: "America/New_York", hour12: false })
     : new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour12: false });
 
-  const emoji = result === "WIN" ? "✅" : result === "LOSS" ? "❌" : "⚪";
-  const pnlFormatted = pnl ? fmtPnl(pnl) : "—";
+  const exitPrice = exit ?? (isWin ? tp : sl) ?? "—";
+  const pnlRaw = entry && exitPrice ? parseFloat(exitPrice) - parseFloat(entry) : null;
+  const pnlStr = pnlRaw !== null ? fmtPnl(pnlRaw) : "—";
+  const emoji  = isWin ? "✅" : "❌";
+  const result = isWin ? "WIN" : "LOSS";
 
   const msg = [
-    `${emoji} <b>ALA CLOSED — ${result ?? "CLOSED"} ${symbol}</b>`,
+    `${emoji} <b>ALA CLOSED — ${result} ${symbol}</b>`,
     ``,
-    `📍 <b>Entry:</b>    ${entry ?? "—"}`,
-    `🚪 <b>Exit:</b>     ${exit ?? "—"}`,
-    `💰 <b>PnL:</b>      ${pnlFormatted}`,
+    `📍 <b>Entry:</b>  ${entry ?? "—"}`,
+    `🚪 <b>Exit:</b>   ${exitPrice}`,
+    `💰 <b>PnL:</b>    ${pnlStr} pts`,
     ``,
-    `🕐 <b>Session:</b>  ${session ?? "—"}`,
-    `⏱  <b>Duration:</b> ${duration ?? "—"}`,
-    `🕒 <b>Closed:</b>   ${time} EST`,
+    `🕒 <b>Time:</b>   ${time} EST`,
   ].join("\n");
 
   try {
     await sendTelegram(msg);
-    res.json({ ok: true, action: "close", symbol, result });
+    res.json({ ok: true, action: "close", result, symbol });
   } catch (err) {
-    console.error("[/signal/close] Error:", err.message);
+    console.error("[CLOSE] Error:", err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
+}
+
+// ─── ROUTES ────────────────────────────────────────────────────────────────
+
+app.get("/", (req, res) => {
+  res.json({ status: "ALA VPS online", version: "1.1.0" });
 });
 
-// ─── Start ─────────────────────────────────────────────────────────────────
+// Single unified webhook — TradingView sends everything here
+// action codes: 1 = open, 2 = close TP (WIN), 3 = close SL (LOSS)
+app.post("/signal", async (req, res) => {
+  if (!authCheck(req, res)) return;
+  const code = parseInt(req.body.action);
+  if (code === 1)           return handleOpen(req, res);
+  if (code === 2 || code === 3) return handleClose(req, res, code);
+  return res.status(400).json({ ok: false, error: `Unknown action: ${req.body.action}` });
+});
+
+// Legacy endpoints (for manual test.js usage)
+app.post("/signal/open",  async (req, res) => { if (!authCheck(req, res)) return; return handleOpen(req, res); });
+app.post("/signal/close", async (req, res) => { if (!authCheck(req, res)) return; return handleClose(req, res, 2); });
+
 app.listen(PORT, () => {
   console.log(`✅ ALA VPS listening on port ${PORT}`);
 });
