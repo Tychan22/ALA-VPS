@@ -30,13 +30,12 @@ async function sendTelegram(text, imageUrl = null) {
   }
 }
 
-async function getChartImage(symbol = "OANDA:XAUUSD", interval = "5") {
+async function getChartImage(symbol = "FOREXCOM:XAUUSD", interval = "5") {
   try {
-    const res = await axios.get("https://api.chart-img.com/v1/tradingview/advanced-chart", {
-      params: { symbol, interval: interval + 'm', width: 800, height: 500, theme: "dark" },
-      headers: { Authorization: `Bearer ${CHART_IMG_KEY}` },
-      responseType: "arraybuffer",
-    });
+    const res = await axios.post("https://api.chart-img.com/v2/tradingview/layout-chart/elAti8iP",
+      { symbol, interval: interval + "m", width: 800, height: 500, theme: "dark" },
+      { headers: { "x-api-key": CHART_IMG_KEY, "content-type": "application/json" }, responseType: "arraybuffer" }
+    );
     return Buffer.from(res.data);
   } catch (err) {
     console.error("[CHART-IMG] Failed:", err.message);
