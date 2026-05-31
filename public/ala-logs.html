@@ -27,7 +27,7 @@
     --sans: 'Rajdhani', sans-serif;
   }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
 
   body {
     background: var(--bg);
@@ -782,7 +782,7 @@ function render() {
         : '—';
       const pnlClass = result === 'WIN' ? 'pnl-pos' : result === 'LOSS' ? 'pnl-neg' : 'pnl-open';
       const badgeClass = result === 'WIN' ? 'win' : result === 'LOSS' ? 'loss' : 'open';
-      return `<tr ondblclick="openPopup(${JSON.stringify(t).replace(/'/g, '&apos;')})" style="cursor:pointer">
+      return `<tr ondblclick="openPopupByIndex(${trades.length - 1 - ri})" style="cursor:pointer">
         <td>${t.date || '—'}</td>
         <td>${t.session || '—'}</td>
         <td>${t.entry || '—'}</td>
@@ -877,6 +877,13 @@ async function syncFromVPS() {
 render();
 syncFromVPS();
 setInterval(syncFromVPS, 30000);
+
+function openPopupByIndex(i) {
+  const trades = getTrades();
+  const t = trades[i];
+  if (!t) return;
+  openPopup(t);
+}
 
 function openPopup(t) {
   const vpsBase = VPS_URL;
