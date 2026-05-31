@@ -874,7 +874,6 @@ async function syncFromVPS() {
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
-document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
 render();
 syncFromVPS();
 setInterval(syncFromVPS, 30000);
@@ -890,13 +889,15 @@ function openPopup(t) {
   // Reset error states
   imgOpen.style.display  = 'block';
   imgClose.style.display = 'block';
-  if (imgOpen.nextSibling)  imgOpen.nextSibling.style.display  = 'none';
-  if (imgClose.nextSibling) imgClose.nextSibling.style.display = 'none';
+  const onNS = imgOpen.parentElement.querySelector('.screen-none');
+  const clNS = imgClose.parentElement.querySelector('.screen-none');
+  if (onNS) onNS.style.display = 'none';
+  if (clNS) clNS.style.display = 'none';
 
   imgOpen.src  = t.imgOpen  ? vpsBase + t.imgOpen  : '';
   imgClose.src = t.imgClose ? vpsBase + t.imgClose : '';
-  if (!t.imgOpen)  { imgOpen.style.display  = 'none'; if (imgOpen.nextSibling)  imgOpen.nextSibling.style.display  = 'flex'; }
-  if (!t.imgClose) { imgClose.style.display = 'none'; if (imgClose.nextSibling) imgClose.nextSibling.style.display = 'flex'; }
+  if (!t.imgOpen)  { imgOpen.style.display  = 'none'; if (onNS) onNS.style.display  = 'flex'; }
+  if (!t.imgClose) { imgClose.style.display = 'none'; if (clNS) clNS.style.display = 'flex'; }
 
   document.getElementById('ps-entry').textContent = t.entry || '—';
   document.getElementById('ps-sl').textContent    = t.sl    || '—';
