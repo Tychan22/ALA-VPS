@@ -856,7 +856,14 @@ function renderCalendar(trades) {
   }).join('');
 }
 
-function deleteTrade(i) {
+async function deleteTrade(i) {
+  // Delete from server first
+  try {
+    await fetch(VPS_URL + '/trades/' + i, { method: 'DELETE' });
+  } catch (err) {
+    console.error('Server delete failed:', err);
+  }
+  // Then remove from localStorage
   const trades = getTrades();
   trades.splice(i, 1);
   saveTrades(trades);

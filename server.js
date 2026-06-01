@@ -291,4 +291,17 @@ app.post("/log", (req, res) => {
   res.json({ ok: true, total: trades.length });
 });
 
+
+// DELETE /trades/:index — remove a single trade by index
+app.delete("/trades/:index", (req, res) => {
+  const i = parseInt(req.params.index);
+  const trades = readTrades();
+  if (isNaN(i) || i < 0 || i >= trades.length) {
+    return res.status(404).json({ ok: false, error: "Trade not found" });
+  }
+  trades.splice(i, 1);
+  writeTrades(trades);
+  res.json({ ok: true, total: trades.length });
+});
+
 app.listen(PORT, () => console.log(`✅ ALA VPS listening on port ${PORT}`));
