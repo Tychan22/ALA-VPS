@@ -269,10 +269,12 @@ app.use(express.static(path.join(__dirname, "public")));
 // Unified webhook
 app.post("/signal", async (req, res) => {
   if (!authCheck(req, res)) return;
-  const code = parseInt(req.body.action);
-  if (code === 1)               return handleOpen(req, res);
+  const raw  = req.body.action;
+  const code = parseInt(raw);
+  console.log("[/signal] action raw:", raw, "parsed:", code, "body:", JSON.stringify(req.body));
   if (code === 2 || code === 3) return handleClose(req, res, code);
-  return res.status(400).json({ ok: false, error: `Unknown action: ${req.body.action}` });
+  // Default to open for action=1, NaN, undefined, or any unrecognized value
+  return handleOpen(req, res);
 });
 
 // Legacy
