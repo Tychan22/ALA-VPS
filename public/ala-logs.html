@@ -511,6 +511,39 @@
     font-weight: 600;
   }
 
+
+  /* ── LIGHTBOX ── */
+  .lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.95);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+  }
+  .lightbox.active { display: flex; }
+  .lightbox img {
+    max-width: 92vw;
+    max-height: 92vh;
+    object-fit: contain;
+    border: 1px solid var(--border);
+    box-shadow: 0 0 40px rgba(0,255,65,0.1);
+  }
+  .lightbox-close {
+    position: absolute;
+    top: 20px; right: 24px;
+    color: var(--text-dim);
+    font-size: 24px;
+    cursor: pointer;
+    font-family: var(--mono);
+    background: none;
+    border: none;
+  }
+  .lightbox-close:hover { color: var(--green); }
+  .screen-box img { cursor: zoom-in; }
+
   /* scrollbar */
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
@@ -915,6 +948,16 @@ updateUptime();
 setInterval(updateUptime, 60000);
 
 
+
+function openLightbox(src) {
+  if (!src) return;
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('active');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('active');
+}
+
 function openPopupByIndex(i) {
   const trades = getTrades();
   const t = trades[i];
@@ -939,7 +982,9 @@ function openPopup(t) {
   if (clNS) clNS.style.display = 'none';
 
   imgOpen.src  = t.imgOpen  ? vpsBase + t.imgOpen  : '';
+  imgOpen.onclick  = t.imgOpen  ? () => openLightbox(vpsBase + t.imgOpen)  : null;
   imgClose.src = t.imgClose ? vpsBase + t.imgClose : '';
+  imgClose.onclick = t.imgClose ? () => openLightbox(vpsBase + t.imgClose) : null;
   if (!t.imgOpen)  { imgOpen.style.display  = 'none'; if (onNS) onNS.style.display  = 'flex'; }
   if (!t.imgClose) { imgClose.style.display = 'none'; if (clNS) clNS.style.display = 'flex'; }
 
@@ -995,5 +1040,11 @@ function closePopup(e) {
   </div>
 </div>
 
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="" alt="">
+</div>
 </body>
 </html>
