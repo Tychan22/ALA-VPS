@@ -496,6 +496,21 @@
   .popup-stat span.red { color: var(--red); }
   .popup-stat span.amber { color: var(--amber); }
 
+
+  .uptime {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+  }
+  .uptime span {
+    color: var(--green);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
   /* scrollbar */
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
@@ -566,11 +581,12 @@
     </div>
 
     <!-- CALENDAR -->
-    <div class="panel">
+    <div class="panel" style="display:flex;flex-direction:column;">
       <div class="panel-title">Calendar <span id="cal-month">—</span></div>
       <div class="cal-grid" id="cal-labels"></div>
       <div class="cal-grid" id="cal-grid"></div>
-    </div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:1px solid #1a2e1a;margin-top:14px;padding-top:12px;text-align:center;font-size:9px;letter-spacing:2px;color:#3a6e3a;">SYSTEM UPTIME<br><span id="uptime-counter" style="color:#00ff41;font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;margin-top:4px;display:block;">—</span><span style="font-size:8px;color:#1e3e1e;letter-spacing:2px;margin-top:4px;display:block;">SINCE MAY 31 2026</span></div>
+          </div>
 
   </div>
 
@@ -603,7 +619,6 @@
     </div>
   </div>
 
-</div>
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────────────────────
@@ -877,6 +892,21 @@ async function syncFromVPS() {
 render();
 syncFromVPS();
 setInterval(syncFromVPS, 30000);
+
+// ── UPTIME COUNTER ────────────────────────────────────────────────────────────
+const START_DATE = new Date('2026-05-31T00:00:00-04:00'); // May 31 2026 EST
+
+function updateUptime() {
+  const now   = new Date();
+  const diff  = now - START_DATE;
+  const days  = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const mins  = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  document.getElementById('uptime-counter').textContent = `${days}D ${hours}H ${mins}M`;
+}
+updateUptime();
+setInterval(updateUptime, 60000);
+
 
 function openPopupByIndex(i) {
   const trades = getTrades();
