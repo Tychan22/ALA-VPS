@@ -168,7 +168,11 @@ async function handleOpen(req, res) {
       await sendTelegram(msg);
     }
 
-    // Store pending trade — matched on close
+    // Store pending trade — overwrites if new signal fires (updated entry)
+    if (pending[symbol]) {
+      console.log(`[OPEN] Updated signal for ${symbol} — replacing pending with new entry`);
+    }
+
     pending[symbol] = {
       symbol, entry, sl, tp,
       session: session || "—",
@@ -224,9 +228,12 @@ async function handleClose(req, res, code) {
     }
 
     // Match to pending open trade
-    const openTrade = pending[symbol] || {};
-    const imgOpen   = openTrade.imgOpen || null;
-    delete pending[symbol];
+    const openTrade = pending[symbol] || null;
+    if (!openTrade) {
+      console.log(`[CLOSE] No pending trade found for ${symbol} — orphan close, logging with flag`);
+    }
+    const imgOpen = openTrade ? openTrade.imgOpen : null;
+    if (pending[symbol]) delete pending[symbol];
 
     // Build trade record
     const pen    = openTrade;
@@ -250,6 +257,7 @@ async function handleClose(req, res, code) {
       imgOpen,
       imgClose,
       ts:      pen.ts || Date.now(),
+      orphan:  !openTrade,
       tsClose: Date.now(),
     };
 
