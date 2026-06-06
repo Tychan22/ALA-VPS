@@ -604,7 +604,8 @@
     <!-- DONUT -->
     <div class="panel">
       <div class="panel-title">Results <span id="donut-label">—</span></div>
-      <canvas id="donut" height="160"></canvas>
+      <canvas id="donut" height="140"></canvas>
+      <div id="donut-legend" style="margin-top:10px;display:flex;flex-direction:column;gap:4px"></div>
     </div>
 
     <!-- PNL CHART -->
@@ -710,12 +711,23 @@ function calcPnl(result, rr) {
 let donutChart = null;
 let pnlChart   = null;
 
+
+// ── RESULT FILTER ────────────────────────────────────────────────────────────
+let currentResultFilter = null;
+
+function setResultFilter(result) {
+  currentResultFilter = currentResultFilter === result ? null : result;
+  render();
+}
+
 function render() {
-  const trades = getTrades();
-  const closed = trades.filter(t => t.result === 'WIN' || t.result === 'LOSS');
+  let trades = getTrades();
+  const allTrades = trades;
+  if (currentResultFilter) trades = trades.filter(t => t.result === currentResultFilter);
+  const closed = allTrades.filter(t => t.result === 'WIN' || t.result === 'LOSS');
   const wins   = closed.filter(t => t.result === 'WIN');
   const losses = closed.filter(t => t.result === 'LOSS');
-  const open   = trades.filter(t => t.result === 'OPEN');
+  const open   = allTrades.filter(t => t.result === 'OPEN');
 
   // Stats
   document.getElementById('stat-total').textContent     = trades.length;
@@ -748,23 +760,49 @@ function render() {
 
   // Donut
   document.getElementById('donut-label').textContent = closed.length ? wins.length + 'W / ' + losses.length + 'L' : '—';
+  // Interactive donut
+  const donutData   = [wins.length, losses.length];
+  const donutKeys   = ['WIN', 'LOSS'];
+  const donutLabels = ['Win', 'Loss'];
+  const donutColors = ['#00ff41', '#ff2244'];
+
+  // Legend with click filter
+  document.getElementById('donut-label').textContent = closed.length ? wins.length + 'W / ' + losses.length + 'L' : '—';
+  document.getElementById('donut-legend').innerHTML = donutLabels.map((l, i) => donutData[i] > 0 ? `
+    <div onclick="setResultFilter('${donutKeys[i]}')" id="legend-${donutKeys[i]}"
+      style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 6px;border-radius:4px;transition:background 0.15s;"
+      onmouseover="this.style.background='${donutColors[i]}18'"
+      onmouseout="this.style.background=currentResultFilter==='${donutKeys[i]}'?'${donutColors[i]}22':'transparent'">
+      <div style="width:7px;height:7px;border-radius:50%;background:${donutColors[i]};flex-shrink:0"></div>
+      <span style="color:var(--text-dim);flex:1;font-size:10px;letter-spacing:1px;">${l}</span>
+      <span style="font-size:11px;color:${donutColors[i]};font-weight:600">${donutData[i]}</span>
+    </div>` : '').join('');
+
   if (donutChart) donutChart.destroy();
   const donutCtx = document.getElementById('donut').getContext('2d');
   donutChart = new Chart(donutCtx, {
     type: 'doughnut',
     data: {
-      labels: ['Win', 'Loss'],
+      labels: donutLabels,
       datasets: [{
-        data: [wins.length || 0, losses.length || 0.001],
-        backgroundColor: ['#003310', '#330010'],
-        borderColor: ['#00ff41', '#ff2244'],
-        borderWidth: 1,
+        data: donutData.map(d => d || 0.001),
+        backgroundColor: donutColors.map((c, i) => currentResultFilter === donutKeys[i] ? c : c + '99'),
+        borderColor: '#050a05',
+        borderWidth: 3,
+        borderRadius: currentResultFilter ? 2 : 0,
       }]
     },
     options: {
-      cutout: '72%',
+      cutout: '70%',
+      responsive: true,
+      maintainAspectRatio: true,
       plugins: { legend: { display: false }, tooltip: { enabled: false } },
-      animation: { duration: 600 }
+      animation: { duration: 400 },
+      onClick(_, elements) {
+        if (!elements.length) return;
+        const i = elements[0].index;
+        if (donutData[i] > 0) setResultFilter(donutKeys[i]);
+      }
     }
   });
 
@@ -897,7 +935,9 @@ async function deleteTrade(i) {
     console.error('Server delete failed:', err);
   }
   // Then remove from localStorage
-  const trades = getTrades();
+  let trades = getTrades();
+  const allTrades = trades;
+  if (currentResultFilter) trades = trades.filter(t => t.result === currentResultFilter);
   trades.splice(i, 1);
   saveTrades(trades);
   render();
@@ -959,7 +999,9 @@ function closeLightbox() {
 }
 
 function openPopupByIndex(i) {
-  const trades = getTrades();
+  let trades = getTrades();
+  const allTrades = trades;
+  if (currentResultFilter) trades = trades.filter(t => t.result === currentResultFilter);
   const t = trades[i];
   if (!t) return;
   openPopup(t);
