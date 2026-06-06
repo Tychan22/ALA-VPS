@@ -132,7 +132,7 @@ function authCheck(req, res) {
 
 // ─── OPEN HANDLER ─────────────────────────────────────────────────────────────
 async function handleOpen(req, res) {
-  const { symbol = "XAUUSD", interval = "5", entry, sl, tp, tp1, session, timestamp, risk } = req.body;
+  const { symbol = "XAUUSD", interval = "5", entry, sl, tp, tp1, session, timestamp, risk, direction = "LONG" } = req.body;
   console.log("[OPEN]", req.body);
 
   const tsNum = parseInt(timestamp);
@@ -168,6 +168,7 @@ async function handleOpen(req, res) {
       ts: Date.now(),
       imgOpen: null,
       risk: risk || null,
+      direction: direction || "LONG",
     };
 
     // Respond to TradingView immediately
@@ -257,6 +258,7 @@ async function handleClose(req, res, code) {
       imgOpen,
       imgClose,
       risk:    pen.risk || null,
+      direction: pen.direction || "LONG",
       ts:      pen.ts || Date.now(),
       orphan:  !openTrade,
       tsClose: Date.now(),
