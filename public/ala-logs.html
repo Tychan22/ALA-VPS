@@ -306,6 +306,8 @@
   .badge.win { background: var(--green-dark); color: var(--green); border: 1px solid var(--green-dim); }
   .badge.loss { background: var(--red-dark); color: var(--red); border: 1px solid var(--red); }
   .badge.open { background: #001a2a; color: var(--cyan); border: 1px solid var(--cyan); }
+  .badge.be { background: #001a2a; color: #00ccff; border: 1px solid #00ccff; }
+  .badge.ghost { background: #1a1a1a; color: #666; border: 1px solid #444; }
 
   .pnl-pos { color: var(--green); }
   .pnl-neg { color: var(--red); }
@@ -657,7 +659,7 @@
 <script>
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const VPS_URL = 'https://ala-vps-production.up.railway.app';
-const RISK    = 300; // fixed $ risk per trade
+const DEFAULT_RISK = 300; // fallback if risk not in payload
 
 // ── MATRIX ───────────────────────────────────────────────────────────────────
 const canvas = document.getElementById('matrix');
@@ -701,9 +703,13 @@ function calcRR(entry, sl, tp) {
   return risk > 0 ? (reward / risk).toFixed(2) : null;
 }
 
-function calcPnl(result, rr) {
-  if (result === 'WIN')  return +(RISK * parseFloat(rr)).toFixed(0);
-  if (result === 'LOSS') return -RISK;
+function calcPnl(result, rr, risk) {
+  const R = parseFloat(risk) || DEFAULT_RISK;
+  const halfR = R / 2;
+  const fullRR = parseFloat(rr) || 1;
+  if (result === 'WIN')  return +((halfR) + (halfR * fullRR)).toFixed(0);
+  if (result === 'LOSS') return -R;
+  if (result === 'BE')   return +halfR.toFixed(0);
   return null;
 }
 
@@ -724,7 +730,7 @@ function render() {
   let trades = getTrades();
   const allTrades = trades;
   if (currentResultFilter) trades = trades.filter(t => t.result === currentResultFilter);
-  const closed = allTrades.filter(t => t.result === 'WIN' || t.result === 'LOSS');
+  const closed = allTrades.filter(t => t.result === 'WIN' || t.result === 'LOSS' || t.result === 'BE');
   const wins   = closed.filter(t => t.result === 'WIN');
   const losses = closed.filter(t => t.result === 'LOSS');
   const open   = allTrades.filter(t => t.result === 'OPEN');
@@ -761,10 +767,11 @@ function render() {
   // Donut
   document.getElementById('donut-label').textContent = closed.length ? wins.length + 'W / ' + losses.length + 'L' : '—';
   // Interactive donut
-  const donutData   = [wins.length, losses.length];
-  const donutKeys   = ['WIN', 'LOSS'];
-  const donutLabels = ['Win', 'Loss'];
-  const donutColors = ['#00ff41', '#ff2244'];
+  const bes        = closed.filter(t => t.result === 'BE');
+  const donutData   = [wins.length, losses.length, bes.length];
+  const donutKeys   = ['WIN', 'LOSS', 'BE'];
+  const donutLabels = ['Win', 'Loss', 'BE'];
+  const donutColors = ['#00ff41', '#ff2244', '#00ccff'];
 
   // Legend with click filter
   document.getElementById('donut-label').textContent = closed.length ? wins.length + 'W / ' + losses.length + 'L' : '—';
@@ -867,7 +874,8 @@ function render() {
         ? (t.pnl >= 0 ? '+$' + t.pnl : '-$' + Math.abs(t.pnl))
         : '—';
       const pnlClass = result === 'WIN' ? 'pnl-pos' : result === 'LOSS' ? 'pnl-neg' : 'pnl-open';
-      const badgeClass = result === 'WIN' ? 'win' : result === 'LOSS' ? 'loss' : 'open';
+      const badgeClass = t.orphan ? 'ghost' : result === 'WIN' ? 'win' : result === 'LOSS' ? 'loss' : result === 'BE' ? 'be' : 'open';
+      const badgeLabel = t.orphan ? 'GHOST' : result;
       return `<tr ondblclick="openPopupByIndex(${trades.length - 1 - ri})" style="cursor:pointer">
         <td>${t.date || '—'}</td>
         <td>${t.session || '—'}</td>
@@ -958,7 +966,7 @@ async function syncFromVPS() {
     data.forEach(t => {
       if (!tsSet.has(t.ts)) {
         const rr  = calcRR(t.entry, t.sl, t.tp);
-        const pnl = calcPnl(t.result, rr);
+        const pnl = calcPnl(t.result, rr, t.risk);
         local.push({ ...t, rr, pnl });
         added++;
       }
