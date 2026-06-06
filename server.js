@@ -134,9 +134,11 @@ async function handleOpen(req, res) {
   const { symbol = "XAUUSD", interval = "5", entry, sl, tp, session, timestamp } = req.body;
   console.log("[OPEN]", req.body);
 
-  const time = timestamp
-    ? new Date(timestamp).toLocaleString("en-US", { timeZone: "America/New_York", hour12: false })
-    : new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour12: false });
+  const tsNum = parseInt(timestamp);
+  const tsDate = timestamp
+    ? (tsNum > 1e12 ? new Date(tsNum) : new Date(timestamp))
+    : new Date();
+  const time = tsDate.toLocaleString("en-US", { timeZone: "America/New_York", hour12: false });
 
   const rr = entry && sl && tp
     ? (Math.abs(parseFloat(tp) - parseFloat(entry)) / Math.abs(parseFloat(entry) - parseFloat(sl))).toFixed(2)
@@ -189,9 +191,11 @@ async function handleClose(req, res, code) {
   const result = isWin ? "WIN" : "LOSS";
   console.log("[CLOSE]", req.body);
 
-  const time = timestamp
-    ? new Date(timestamp).toLocaleString("en-US", { timeZone: "America/New_York", hour12: false })
-    : new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour12: false });
+  const tsNum = parseInt(timestamp);
+  const tsDate = timestamp
+    ? (tsNum > 1e12 ? new Date(tsNum) : new Date(timestamp))
+    : new Date();
+  const time = tsDate.toLocaleString("en-US", { timeZone: "America/New_York", hour12: false });
 
   const exitPrice = exit ?? (isWin ? tp : sl) ?? "—";
   const pnlStr    = entry && exitPrice ? fmtPnl(parseFloat(exitPrice) - parseFloat(entry)) : "—";
