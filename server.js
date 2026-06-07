@@ -241,9 +241,11 @@ async function handleClose(req, res, code) {
     const tradeEntry = entry || pen.entry;
     const tradeSL    = sl    || pen.sl;
     const tradeTP    = tp    || pen.tp;
-    const rr         = tradeEntry && tradeSL && tradeTP
-      ? (Math.abs(parseFloat(tradeTP) - parseFloat(tradeEntry)) / Math.abs(parseFloat(tradeEntry) - parseFloat(tradeSL))).toFixed(2)
-      : null;
+    const rr         = payloadRR && payloadRR !== 'NaN'
+      ? parseFloat(payloadRR).toFixed(2)
+      : (tradeEntry && tradeSL && tradeTP
+        ? (Math.abs(parseFloat(tradeTP) - parseFloat(tradeEntry)) / Math.abs(parseFloat(tradeEntry) - parseFloat(tradeSL))).toFixed(2)
+        : null);
 
     const trade = {
       symbol,
@@ -323,7 +325,7 @@ async function handleBE(req, res) {
     ``,
     `📍 <b>Entry:</b>  ${entry ?? "—"}`,
     `🚪 <b>Exit:</b>   ${exit ?? entry ?? "—"}`,
-    `💰 <b>PnL:</b>    +$300 (1R from partial)`,
+    `💰 <b>PnL:</b>    +$${pen.risk ? (parseFloat(pen.risk)/2).toFixed(0) : "—"} (1R from partial)`,
     ``,
     `🕒 <b>Time:</b>   ${time} EST`,
   ].join("\n");
@@ -346,23 +348,26 @@ async function handleBE(req, res) {
     const tradeEntry = entry || pen.entry;
     const tradeSL    = sl    || pen.sl;
     const tradeTP    = tp    || pen.tp;
-    const rr         = "1:1";
+    const tradeRisk  = pen.risk || null;
+    const rr         = 1; // BE = 1R achieved from partial
 
     const trade = {
       symbol,
-      date:     pen.date || getTradingDate(),
-      session:  pen.session || "—",
-      entry:    tradeEntry,
-      sl:       tradeSL,
-      tp:       tradeTP,
-      exit:     exit || tradeEntry,
-      result:   "BE",
+      date:      pen.date || getTradingDate(),
+      session:   pen.session || "—",
+      entry:     tradeEntry,
+      sl:        tradeSL,
+      tp:        tradeTP,
+      exit:      exit || tradeEntry,
+      result:    "BE",
       rr,
       imgOpen,
       imgClose,
-      ts:       pen.ts || Date.now(),
-      tsClose:  Date.now(),
-      orphan:   !openTrade,
+      risk:      tradeRisk,
+      direction: pen.direction || "LONG",
+      ts:        pen.ts || Date.now(),
+      tsClose:   Date.now(),
+      orphan:    !openTrade,
     };
 
     const trades = readTrades();
