@@ -706,9 +706,17 @@ function calcRR(entry, sl, tp) {
   return risk > 0 ? (reward / risk).toFixed(2) : null;
 }
 
+// ── PNL CONFIG ────────────────────────────────────────────────────────────────
+// Swap out this function to change how PnL is calculated per strategy.
+// Current: assumes partials at 1R (half size), full TP at originalRR
+//   WIN  = (risk/2 × 1R) + (risk/2 × originalRR)
+//   BE   = risk/2 (only partial secured)
+//   LOSS = -risk (full stop, no partial)
+// To change: edit the formulas below. risk = dollar risk, rr = signal R:R ratio.
+// ──────────────────────────────────────────────────────────────────────────────
 function calcPnl(result, rr, risk) {
-  const R = parseFloat(risk) || DEFAULT_RISK;
-  const halfR = R / 2;
+  const R      = parseFloat(risk) || DEFAULT_RISK;
+  const halfR  = R / 2;
   const fullRR = parseFloat(rr) || 1;
   if (result === 'WIN')  return +((halfR) + (halfR * fullRR)).toFixed(0);
   if (result === 'LOSS') return -R;
@@ -727,6 +735,13 @@ let currentResultFilter = null;
 function setResultFilter(result) {
   currentResultFilter = currentResultFilter === result ? null : result;
   render();
+}
+
+// Effective R:R shown in table = actual PnL / risk (always accurate regardless of partials)
+function effectiveRR(pnl, risk) {
+  const R = parseFloat(risk) || DEFAULT_RISK;
+  if (pnl === null || pnl === undefined) return null;
+  return (pnl / R).toFixed(2);
 }
 
 function render() {
@@ -889,7 +904,7 @@ function render() {
         <td style="color:var(--red)">${t.sl || '—'}</td>
         <td style="color:var(--amber)">${t.tp || '—'}</td>
         <td>${t.exit || '—'}</td>
-        <td style="color:var(--amber)">${t.rr ? (parseFloat(t.rr) % 1 === 0 ? parseInt(t.rr) : parseFloat(t.rr).toFixed(1)) + ':1' : '—'}</td>
+        <td style="color:var(--amber)">${t.pnl !== null && t.pnl !== undefined && t.risk ? effectiveRR(t.pnl, t.risk) + ':1' : t.rr ? (parseFloat(t.rr) % 1 === 0 ? parseInt(t.rr) : parseFloat(t.rr).toFixed(1)) + ':1' : '—'}</td>
         <td><span class="badge ${badgeClass}">${result}</span></td>
         <td class="${pnlClass}">${pnlStr}</td>
         <td><button class="btn danger" style="padding:3px 10px;font-size:9px" onclick="deleteTrade(${i})">✕</button></td>
@@ -1063,6 +1078,7 @@ function openPopup(t) {
     pnlEl.textContent = (t.pnl >= 0 ? '+' : '') + '$' + t.pnl;
     pnlEl.className   = t.pnl >= 0 ? '' : 'red';
   } else { pnlEl.textContent = '—'; }
+  document.getElementById('ps-dur').textContent = t.ts && t.tsClose ? formatDuration(t.tsClose - t.ts) : '—';
 
   document.getElementById('popup').classList.add('active');
 }
