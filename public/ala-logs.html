@@ -720,7 +720,7 @@ function calcPnl(result, rr, risk) {
   const fullRR = parseFloat(rr) || 1;
   if (result === 'WIN')  return +((halfR) + (halfR * fullRR)).toFixed(0);
   if (result === 'LOSS') return -R;
-  if (result === 'BE')   return +halfR.toFixed(0);
+  if (result === 'PARTIAL')   return +halfR.toFixed(0);
   return null;
 }
 
@@ -748,7 +748,7 @@ function render() {
   let trades = getTrades();
   const allTrades = trades;
   if (currentResultFilter) trades = trades.filter(t => t.result === currentResultFilter);
-  const closed = allTrades.filter(t => t.result === 'WIN' || t.result === 'LOSS' || t.result === 'BE');
+  const closed = allTrades.filter(t => t.result === 'WIN' || t.result === 'LOSS' || t.result === 'PARTIAL');
   const wins   = closed.filter(t => t.result === 'WIN');
   const losses = closed.filter(t => t.result === 'LOSS');
   const open   = allTrades.filter(t => t.result === 'OPEN');
@@ -785,10 +785,10 @@ function render() {
   // Donut
   document.getElementById('donut-label').textContent = closed.length ? wins.length + 'W / ' + losses.length + 'L' : '—';
   // Interactive donut
-  const bes        = closed.filter(t => t.result === 'BE');
+  const bes        = closed.filter(t => t.result === 'PARTIAL');
   const donutData   = [wins.length, losses.length, bes.length];
-  const donutKeys   = ['WIN', 'LOSS', 'BE'];
-  const donutLabels = ['Win', 'Loss', 'BE'];
+  const donutKeys   = ['WIN', 'LOSS', 'PARTIAL'];
+  const donutLabels = ['Win', 'Loss', 'PARTIAL'];
   const donutColors = ['#00ff41', '#ff2244', '#00ccff'];
 
   // Legend with click filter
@@ -892,7 +892,7 @@ function render() {
         ? (t.pnl >= 0 ? '+$' + t.pnl : '-$' + Math.abs(t.pnl))
         : '—';
       const pnlClass = result === 'WIN' ? 'pnl-pos' : result === 'LOSS' ? 'pnl-neg' : 'pnl-open';
-      const badgeClass = t.orphan ? 'ghost' : result === 'WIN' ? 'win' : result === 'LOSS' ? 'loss' : result === 'BE' ? 'be' : 'open';
+      const badgeClass = t.orphan ? 'ghost' : result === 'WIN' ? 'win' : result === 'LOSS' ? 'loss' : result === 'PARTIAL' ? 'be' : 'open';
       const badgeLabel = t.orphan ? 'GHOST' : result;
       const biasClass = t.direction === 'SHORT' ? 'short' : 'long';
       const biasLabel = t.direction || 'LONG';
@@ -1047,7 +1047,9 @@ function openPopupByIndex(i) {
 function openPopup(t) {
   const vpsBase = VPS_URL;
   document.getElementById('popup-title').textContent = `${t.symbol || 'XAUUSD'} // ${t.result || 'OPEN'} // ${t.date || '—'}`;
-  document.getElementById('popup-meta').textContent  = `${t.session || '—'} SESSION · ${t.ts ? new Date(t.ts).toLocaleTimeString() : '—'}`;
+  const entryTime = t.ts ? new Date(t.ts).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false}) : '—';
+  const exitTime  = t.tsClose ? new Date(t.tsClose).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false}) : '—';
+  document.getElementById('popup-meta').innerHTML = `${t.session || '—'} SESSION &nbsp;·&nbsp; <span style="color:#ffaa00">ENTRY ${entryTime}</span> &nbsp;·&nbsp; <span style="color:#ffaa00">EXIT ${exitTime}</span>`;
 
   const imgOpen  = document.getElementById('popup-img-open');
   const imgClose = document.getElementById('popup-img-close');
