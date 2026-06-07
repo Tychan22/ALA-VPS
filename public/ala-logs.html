@@ -836,28 +836,37 @@ function render() {
   if (pnlChart) pnlChart.destroy();
   const pnlCtx = document.getElementById('pnlchart').getContext('2d');
   let running = 0;
-  const pnlData = [{ x: 0, y: 0 }, ...closed.map((t, i) => {
-    running += (t.pnl || 0);
-    return { x: i + 1, y: running };
-  })];
+  const pnlLabels = ['Start', ...closed.map(t => t.date || '—')];
+  running = 0;
+  const pnlValuesFixed = [0, ...closed.map(t => { running += (t.pnl || 0); return running; })];
   pnlChart = new Chart(pnlCtx, {
     type: 'line',
     data: {
+      labels: pnlLabels,
       datasets: [{
-        data: pnlData,
+        data: pnlValuesFixed,
         borderColor: totalPnl >= 0 ? '#00ff41' : '#ff2244',
         borderWidth: 2,
         pointBackgroundColor: totalPnl >= 0 ? '#00ff41' : '#ff2244',
-        pointRadius: 3,
+        pointRadius: 4,
         fill: true,
         backgroundColor: totalPnl >= 0 ? 'rgba(0,255,65,0.06)' : 'rgba(255,34,68,0.06)',
         tension: 0.3,
       }]
     },
     options: {
-      parsing: false,
       scales: {
-        x: { display: false },
+        x: {
+          display: true,
+          ticks: {
+            color: '#3a6e3a',
+            font: { family: 'Share Tech Mono', size: 9 },
+            maxRotation: 45,
+            maxTicksLimit: 8,
+          },
+          grid: { display: false },
+          border: { color: '#1a2e1a' }
+        },
         y: {
           ticks: { color: '#3a6e3a', font: { family: 'Share Tech Mono', size: 10 },
                    callback: v => '$' + v },
