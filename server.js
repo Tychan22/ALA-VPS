@@ -20,7 +20,7 @@ const DATA_DIR     = process.env.DATA_DIR || path.join(__dirname);
 const TRADES_FILE  = path.join(DATA_DIR, "trades.json");
 const SCREENS_DIR  = path.join(DATA_DIR, "screenshots");
 
-if (!fs.existsSync(SCREENS_DIR)) fs.mkdirSync(SCREENS_DIR);
+if (!fs.existsSync(SCREENS_DIR)) fs.mkdirSync(SCREENS_DIR, { recursive: true });
 
 function readTrades() {
   try {
@@ -192,7 +192,7 @@ async function handleOpen(req, res) {
 
 // ─── CLOSE HANDLER ────────────────────────────────────────────────────────────
 async function handleClose(req, res, code) {
-  const { symbol = "XAUUSD", entry, exit, tp, sl, session, timestamp } = req.body;
+  const { symbol = "XAUUSD", entry, exit, tp, sl, session, timestamp, rr: payloadRR } = req.body;
   const isWin  = code === 2;
   const result = isWin ? "WIN" : "LOSS";
   console.log("[CLOSE]", req.body);
