@@ -58,7 +58,7 @@ const pending = {};
 // ─── CHART-IMG ────────────────────────────────────────────────────────────────
 function getChartSymbol(symbol) {
   if (symbol.includes("BTC")) return "COINBASE:BTCUSD";
-  if (symbol.includes("MGC")) return "CME_MINI:MGC1!";
+  if (symbol.includes("MGC")) return "COMEX:MGC1!";
   return "OANDA:XAUUSD";
 }
 
