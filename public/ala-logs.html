@@ -4,7 +4,35 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ALA GOLD LOGS</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
+// ── SETTINGS ─────────────────────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('tp-webhook').value   = localStorage.getItem('ala_tp_webhook')   || '';
+  document.getElementById('lune-webhook').value = localStorage.getItem('ala_lune_webhook') || '';
+  document.getElementById('settings-status').textContent = '';
+  document.getElementById('settings-overlay').classList.add('active');
+}
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('active');
+}
+function saveSettings() {
+  localStorage.setItem('ala_tp_webhook',   document.getElementById('tp-webhook').value.trim());
+  localStorage.setItem('ala_lune_webhook', document.getElementById('lune-webhook').value.trim());
+  document.getElementById('settings-status').textContent = '✓ SAVED';
+  document.getElementById('settings-status').style.color = 'var(--green)';
+  setTimeout(() => { document.getElementById('settings-status').textContent = ''; }, 2000);
+}
+function clearSettings() {
+  localStorage.removeItem('ala_tp_webhook');
+  localStorage.removeItem('ala_lune_webhook');
+  document.getElementById('tp-webhook').value   = '';
+  document.getElementById('lune-webhook').value = '';
+  document.getElementById('settings-status').textContent = 'CLEARED';
+  document.getElementById('settings-status').style.color = 'var(--red)';
+  setTimeout(() => { document.getElementById('settings-status').textContent = ''; }, 2000);
+}
+
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap');
 
@@ -186,6 +214,30 @@
   ::-webkit-scrollbar { width:4px; }
   ::-webkit-scrollbar-track { background:var(--bg); }
   ::-webkit-scrollbar-thumb { background:var(--border); }
+
+  /* ── FILTERS ── */
+  .filter-bar { background:var(--bg2); border:1px solid var(--border); padding:10px 16px; margin-bottom:4px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .filter-label { font-size:9px; letter-spacing:3px; color:var(--text-dim); text-transform:uppercase; min-width:56px; }
+  .filter-pills { display:flex; gap:6px; flex-wrap:wrap; }
+  .pill { font-family:var(--sans); font-size:11px; font-weight:600; letter-spacing:1px; padding:3px 12px; border:1px solid var(--border); background:transparent; color:var(--text-dim); cursor:pointer; transition:all 0.15s; text-transform:uppercase; }
+  .pill:hover { border-color:var(--green-dim); color:var(--text); }
+  .pill.active { background:var(--green-dark); border-color:var(--green-dim); color:var(--green); }
+
+  /* ── SETTINGS POPUP ── */
+  .settings-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:100; align-items:center; justify-content:center; }
+  .settings-overlay.active { display:flex; }
+  .settings-box { background:var(--bg2); border:1px solid var(--border); border-top:2px solid var(--green-dim); padding:28px; width:480px; position:relative; }
+  .settings-close { position:absolute; top:12px; right:16px; background:none; border:none; color:var(--text-dim); font-size:18px; cursor:pointer; font-family:var(--mono); }
+  .settings-close:hover { color:var(--green); }
+  .settings-title { font-family:var(--sans); font-size:16px; font-weight:600; color:var(--green); letter-spacing:2px; margin-bottom:4px; }
+  .settings-sub { font-size:9px; color:var(--text-dim); letter-spacing:2px; margin-bottom:24px; }
+  .settings-group { margin-bottom:18px; }
+  .settings-label { font-size:9px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; margin-bottom:6px; display:block; }
+  .settings-input { width:100%; background:var(--bg); border:1px solid var(--border); color:var(--green); font-family:var(--mono); font-size:12px; padding:8px 12px; outline:none; }
+  .settings-input:focus { border-color:var(--green-dim); }
+  .settings-input::placeholder { color:var(--text-muted); }
+  .settings-row { display:flex; gap:8px; margin-top:4px; }
+  .settings-status { font-size:10px; color:var(--text-dim); letter-spacing:1px; margin-top:8px; min-height:16px; }
 </style>
 </head>
 <body>
@@ -242,6 +294,14 @@
       <div class="panel-title">Results <span id="donut-label">—</span></div>
       <canvas id="donut" height="140"></canvas>
       <div id="donut-legend" style="margin-top:10px;display:flex;flex-direction:column;gap:4px"></div>
+      <div style="border-top:1px solid #1a2e1a;margin-top:14px;padding-top:12px;display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <div style="font-size:9px;letter-spacing:3px;color:#3a6e3a;">BIAS</div>
+        <div style="display:flex;gap:6px;">
+          <button id="bias-btn-ALL"   class="pill active" onclick="setBiasFilter(null)">ALL</button>
+          <button id="bias-btn-LONG"  class="pill"        onclick="setBiasFilter('LONG')">LONG</button>
+          <button id="bias-btn-SHORT" class="pill"        onclick="setBiasFilter('SHORT')">SHORT</button>
+        </div>
+      </div>
     </div>
     <div class="panel">
       <div class="panel-title">Cumulative PnL <span id="pnl-total-label">$0</span></div>
@@ -251,13 +311,27 @@
       <div class="panel-title">Calendar <span id="cal-month">—</span></div>
       <div class="cal-grid" id="cal-labels"></div>
       <div class="cal-grid" id="cal-grid"></div>
-      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:1px solid #1a2e1a;margin-top:14px;padding-top:12px;text-align:center;font-size:9px;letter-spacing:2px;color:#3a6e3a;">
+      <div ondblclick="openSettings()" style="cursor:pointer;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:1px solid #1a2e1a;margin-top:14px;padding-top:12px;text-align:center;font-size:9px;letter-spacing:2px;color:#3a6e3a;">
         SYSTEM UPTIME<br>
         <span id="uptime-counter" style="color:#00ff41;font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;margin-top:4px;display:block;">—</span>
         <span style="font-size:8px;color:#1e3e1e;letter-spacing:2px;margin-top:4px;display:block;">SINCE MAY 31 2026</span>
       </div>
     </div>
   </div>
+
+
+  <!-- WIN RATE CARDS -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+    <div class="panel">
+      <div class="panel-title">Win Rate by Setup <span id="wr-setup-label">—</span></div>
+      <canvas id="wr-setup-chart" height="110"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Win Rate by Session <span id="wr-sess-label">—</span></div>
+      <canvas id="wr-sess-chart" height="110"></canvas>
+    </div>
+  </div>
+
 
   <!-- TRADE LOG -->
   <div class="log-wrap">
@@ -359,7 +433,19 @@ function effectiveRR(pnl, risk) {
 }
 
 // ── FILTER STATE ──────────────────────────────────────────────────────────────
+
+let currentBiasFilter    = null;
+let currentSetupFilter   = null;
+let currentSessionFilter = null;
 let currentResultFilter = null;
+function setBiasFilter(v) {
+  currentBiasFilter = v;
+  document.querySelectorAll('[id^="bias-btn-"]').forEach(el => {
+    el.classList.toggle('active', el.id === 'bias-btn-' + (v || 'ALL'));
+  });
+  render();
+}
+
 function setResultFilter(result) {
   currentResultFilter = currentResultFilter === result ? null : result;
   render();
@@ -368,14 +454,18 @@ function setResultFilter(result) {
 // ── RENDER ────────────────────────────────────────────────────────────────────
 let donutChart = null;
 let pnlChart   = null;
+const wrCharts = {};
 
 function render() {
   let trades = getTrades();
-  if (currentResultFilter) trades = trades.filter(t => t.result === currentResultFilter);
+  if (currentResultFilter)  trades = trades.filter(t => t.result    === currentResultFilter);
+  if (currentBiasFilter)    trades = trades.filter(t => t.direction === currentBiasFilter);
+  if (currentSetupFilter)   trades = trades.filter(t => t.setup     === currentSetupFilter);
+  if (currentSessionFilter) trades = trades.filter(t => (t.session||'').toUpperCase() === currentSessionFilter);
   const allTrades = getTrades();
 
   const closed  = allTrades.filter(t => ['WIN','LOSS','PARTIAL'].includes(t.result));
-  const wins    = closed.filter(t => t.result === 'WIN');
+  const wins    = closed.filter(t => t.result === 'WIN' || t.result === 'PARTIAL');
   const losses  = closed.filter(t => t.result === 'LOSS');
   const open    = allTrades.filter(t => t.result === 'OPEN');
 
@@ -445,6 +535,10 @@ function render() {
     options:{ scales:{ x:{ display:true, ticks:{color:'#3a6e3a',font:{family:'Share Tech Mono',size:9},maxRotation:45,maxTicksLimit:8}, grid:{display:false}, border:{color:'#1a2e1a'} }, y:{ ticks:{color:'#3a6e3a',font:{family:'Share Tech Mono',size:10},callback:v=>'$'+v}, grid:{color:'#0d150d'}, border:{color:'#1a2e1a'} } }, plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'$'+ctx.parsed.y}}}, animation:{duration:600} }
   });
 
+
+  renderWRChart('setup',   ['BO','SRR','SFP','BD'], 'wr-setup-chart', 'wr-setup-label');
+  renderWRChart('session', ['ASIA','LONDON','NY'],   'wr-sess-chart',  'wr-sess-label');
+
   // Calendar
   renderCalendar(allTrades);
 
@@ -487,6 +581,61 @@ function render() {
   }
 
   document.getElementById('last-sync').textContent = 'UPDATED '+new Date().toLocaleTimeString();
+}
+
+// ── WIN RATE CHARTS ──────────────────────────────────────────────────────────
+function renderWRChart(field, keys, canvasId, labelId) {
+  const all = getTrades().filter(t => ['WIN','LOSS','PARTIAL'].includes(t.result));
+  const activeFilter = field === 'setup' ? currentSetupFilter : currentSessionFilter;
+  const labels = [], data = [], realWR = [], colors = [], counts = [];
+  keys.forEach(k => {
+    const grp  = all.filter(t => (field === 'session' ? (t.session||'').toUpperCase() : t.setup) === k);
+    const wins = grp.filter(t => t.result === 'WIN' || t.result === 'PARTIAL').length;
+    const wr   = grp.length ? +(wins / grp.length * 100).toFixed(1) : 0;
+    const isActive = activeFilter === k;
+    labels.push(k);
+    realWR.push(wr);
+    // min display height: 8 if has trades, 4 if no trades (gray)
+    data.push(wr > 0 ? wr : grp.length > 0 ? 8 : 4);
+    counts.push(grp.length);
+    const base = grp.length === 0 ? '80,80,80'
+               : wr >= 50         ? '0,255,65'
+               : wr >= 25         ? '255,170,0'
+               :                    '255,34,68';
+    colors.push(isActive ? `rgba(${base},1)` : `rgba(${base},0.5)`);
+  });
+  document.getElementById(labelId).textContent = all.length ? all.length + ' trades' : '—';
+  if (wrCharts[canvasId]) wrCharts[canvasId].destroy();
+  wrCharts[canvasId] = new Chart(document.getElementById(canvasId).getContext('2d'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: colors, borderWidth: 1, borderRadius: 2, maxBarThickness: 48 }] },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      scales: {
+        x: { ticks: { color: '#3a6e3a', font: { family: 'Share Tech Mono', size: 10 } }, grid: { display: false }, border: { color: '#1a2e1a' } },
+        y: { min: 0, max: 100, ticks: { color: '#3a6e3a', font: { family: 'Share Tech Mono', size: 9 }, callback: v => v + '%', stepSize: 25 }, grid: { color: '#0d150d' }, border: { color: '#1a2e1a' } }
+      },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => realWR[ctx.dataIndex] + '%  (' + counts[ctx.dataIndex] + ' trades)' } } },
+      animation: { duration: 400 },
+      onClick(_, els) {
+        if (!els.length) return;
+        const clicked = keys[els[0].index];
+        const idx = els[0].index;
+        if (field === 'setup') {
+          currentSetupFilter = currentSetupFilter === clicked ? null : clicked;
+        } else {
+          currentSessionFilter = currentSessionFilter === clicked ? null : clicked;
+        }
+        render();
+        // set after render so it doesn't get overwritten
+        const activeVal = field === 'setup' ? currentSetupFilter : currentSessionFilter;
+        document.getElementById(labelId).textContent = activeVal
+          ? counts[idx] + ' trades'
+          : all.length + ' trades';
+      },
+      onHover(e, els) { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; }
+    }
+  });
 }
 
 // ── CALENDAR ──────────────────────────────────────────────────────────────────
@@ -637,6 +786,34 @@ function openPopup(t) {
 function closePopup(e) {
   if (e.target===document.getElementById('popup')) document.getElementById('popup').classList.remove('active');
 }
+
+// ── SETTINGS ─────────────────────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('tp-webhook').value   = localStorage.getItem('ala_tp_webhook')   || '';
+  document.getElementById('lune-webhook').value = localStorage.getItem('ala_lune_webhook') || '';
+  document.getElementById('settings-status').textContent = '';
+  document.getElementById('settings-overlay').classList.add('active');
+}
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('active');
+}
+function saveSettings() {
+  localStorage.setItem('ala_tp_webhook',   document.getElementById('tp-webhook').value.trim());
+  localStorage.setItem('ala_lune_webhook', document.getElementById('lune-webhook').value.trim());
+  document.getElementById('settings-status').textContent = '✓ SAVED';
+  document.getElementById('settings-status').style.color = 'var(--green)';
+  setTimeout(() => { document.getElementById('settings-status').textContent = ''; }, 2000);
+}
+function clearSettings() {
+  localStorage.removeItem('ala_tp_webhook');
+  localStorage.removeItem('ala_lune_webhook');
+  document.getElementById('tp-webhook').value   = '';
+  document.getElementById('lune-webhook').value = '';
+  document.getElementById('settings-status').textContent = 'CLEARED';
+  document.getElementById('settings-status').style.color = 'var(--red)';
+  setTimeout(() => { document.getElementById('settings-status').textContent = ''; }, 2000);
+}
+
 </script>
 
 <!-- TRADE POPUP -->
@@ -674,6 +851,32 @@ function closePopup(e) {
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
   <button class="lightbox-close" onclick="closeLightbox()">✕</button>
   <img id="lightbox-img" src="" alt="">
+</div>
+
+
+<!-- SETTINGS POPUP -->
+<div class="settings-overlay" id="settings-overlay" onclick="if(event.target===this)closeSettings()">
+  <div class="settings-box">
+    <button class="settings-close" onclick="closeSettings()">✕</button>
+    <div class="settings-title">ALA // SETTINGS</div>
+    <div class="settings-sub">AUTOTRADING CONFIGURATION</div>
+
+    <div class="settings-group">
+      <label class="settings-label">TradersPost Webhook URL</label>
+      <input class="settings-input" id="tp-webhook" type="text" placeholder="https://webhooks.traderspost.io/trading/...">
+    </div>
+
+    <div class="settings-group">
+      <label class="settings-label">LuneFi Webhook URL</label>
+      <input class="settings-input" id="lune-webhook" type="text" placeholder="https://app.lunefi.com/webhooks/...">
+    </div>
+
+    <div class="settings-row">
+      <button class="btn" onclick="saveSettings()">SAVE</button>
+      <button class="btn danger" onclick="clearSettings()">CLEAR</button>
+    </div>
+    <div class="settings-status" id="settings-status"></div>
+  </div>
 </div>
 
 </body>
