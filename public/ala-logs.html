@@ -600,7 +600,7 @@ function openPopup(t) {
   document.getElementById('popup-title').textContent = `${t.symbol||'MGC1!'} // ${t.result||'OPEN'} // ${t.date||'—'}`;
   const entryTime = t.ts      ? new Date(t.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
   const exitTime  = t.tsClose ? new Date(t.tsClose).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
-  document.getElementById('popup-meta').innerHTML = `${t.session||'—'} SESSION &nbsp;·&nbsp; <span style="color:#ffaa00">ENTRY ${entryTime}</span> &nbsp;·&nbsp; <span style="color:#ffaa00">EXIT ${exitTime}</span>`;
+  document.getElementById('popup-meta').innerHTML = `<span style="color:var(--text-dim)">${t.session||'—'} SESSION</span> &nbsp;·&nbsp; <span style="color:var(--green)">ENTRY ${entryTime}</span> &nbsp;·&nbsp; <span style="color:var(--red)">EXIT ${exitTime}</span>`;
 
   const imgOpen  = document.getElementById('popup-img-open');
   const imgClose = document.getElementById('popup-img-close');
@@ -658,14 +658,14 @@ function closePopup(e) {
       </div>
     </div>
     <div class="popup-stats">
-      <div class="popup-stat">SETUP    <span id="ps-setup">—</span></div>
-      <div class="popup-stat">ENTRY    <span id="ps-entry">—</span></div>
+      <div class="popup-stat">SETUP    <span style="color:var(--text)" id="ps-setup">—</span></div>
+      <div class="popup-stat">ENTRY    <span style="color:var(--text)" id="ps-entry">—</span></div>
       <div class="popup-stat">STOP     <span class="red"   id="ps-sl">—</span></div>
-      <div class="popup-stat">TARGET   <span class="amber" id="ps-tp">—</span></div>
-      <div class="popup-stat">EXIT     <span id="ps-exit">—</span></div>
+      <div class="popup-stat">TARGET   <span style="color:var(--text)" id="ps-tp">—</span></div>
+      <div class="popup-stat">EXIT     <span style="color:var(--text)" id="ps-exit">—</span></div>
       <div class="popup-stat">R:R      <span class="amber" id="ps-rr">—</span></div>
       <div class="popup-stat">PNL      <span id="ps-pnl">—</span></div>
-      <div class="popup-stat">DURATION <span style="color:var(--text-dim)" id="ps-dur">—</span></div>
+      <div class="popup-stat">DURATION <span style="color:var(--text)" id="ps-dur">—</span></div>
     </div>
   </div>
 </div>
