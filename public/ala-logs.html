@@ -463,6 +463,7 @@ function render() {
   if (currentSetupFilter)   trades = trades.filter(t => t.setup     === currentSetupFilter);
   if (currentSessionFilter) trades = trades.filter(t => (t.session||'').toUpperCase() === currentSessionFilter);
   const allTrades = getTrades();
+  const filteredClosed = trades.filter(t => ['WIN','LOSS','PARTIAL'].includes(t.result));
 
   const closed  = allTrades.filter(t => ['WIN','LOSS','PARTIAL'].includes(t.result));
   const wins    = closed.filter(t => t.result === 'WIN' || t.result === 'PARTIAL');
@@ -524,14 +525,15 @@ function render() {
   });
 
   // PnL chart
-  document.getElementById('pnl-total-label').textContent = (totalPnl>=0?'+':'')+'$'+totalPnl;
+  const filteredPnl = filteredClosed.reduce((s,t)=>s+(t.pnl||0),0);
+  document.getElementById('pnl-total-label').textContent = (filteredPnl>=0?'+':'')+'$'+filteredPnl;
   if (pnlChart) pnlChart.destroy();
   let running = 0;
-  const pnlLabels = ['Start',...closed.map(t=>t.date||'—')];
-  const pnlValues = [0,...closed.map(t=>{ running+=(t.pnl||0); return running; })];
+  const pnlLabels = ['Start',...filteredClosed.map(t=>t.date||'—')];
+  const pnlValues = [0,...filteredClosed.map(t=>{ running+=(t.pnl||0); return running; })];
   pnlChart = new Chart(document.getElementById('pnlchart').getContext('2d'), {
     type:'line',
-    data:{ labels:pnlLabels, datasets:[{ data:pnlValues, borderColor:totalPnl>=0?'#00ff41':'#ff2244', borderWidth:2, pointBackgroundColor:totalPnl>=0?'#00ff41':'#ff2244', pointRadius:4, fill:true, backgroundColor:totalPnl>=0?'rgba(0,255,65,0.06)':'rgba(255,34,68,0.06)', tension:0.3 }] },
+    data:{ labels:pnlLabels, datasets:[{ data:pnlValues, borderColor:filteredPnl>=0?'#00ff41':'#ff2244', borderWidth:2, pointBackgroundColor:filteredPnl>=0?'#00ff41':'#ff2244', pointRadius:4, fill:true, backgroundColor:filteredPnl>=0?'rgba(0,255,65,0.06)':'rgba(255,34,68,0.06)', tension:0.3 }] },
     options:{ scales:{ x:{ display:true, ticks:{color:'#3a6e3a',font:{family:'Share Tech Mono',size:9},maxRotation:45,maxTicksLimit:8}, grid:{display:false}, border:{color:'#1a2e1a'} }, y:{ ticks:{color:'#3a6e3a',font:{family:'Share Tech Mono',size:10},callback:v=>'$'+v}, grid:{color:'#0d150d'}, border:{color:'#1a2e1a'} } }, plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'$'+ctx.parsed.y}}}, animation:{duration:600} }
   });
 
