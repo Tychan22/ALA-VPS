@@ -465,14 +465,16 @@ function render() {
   const allTrades = getTrades();
   const filteredClosed = trades.filter(t => ['WIN','LOSS','PARTIAL'].includes(t.result));
 
-  const closed  = allTrades.filter(t => ['WIN','LOSS','PARTIAL'].includes(t.result));
-  const wins    = closed.filter(t => t.result === 'WIN' || t.result === 'PARTIAL');
-  const losses  = closed.filter(t => t.result === 'LOSS');
-  const open    = allTrades.filter(t => t.result === 'OPEN');
+  const closed   = allTrades.filter(t => ['WIN','LOSS','PARTIAL'].includes(t.result));
+  const pureWins = closed.filter(t => t.result === 'WIN');
+  const bes      = closed.filter(t => t.result === 'PARTIAL');
+  const wins     = closed.filter(t => t.result === 'WIN' || t.result === 'PARTIAL'); // for win rate %
+  const losses   = closed.filter(t => t.result === 'LOSS');
+  const open     = allTrades.filter(t => t.result === 'OPEN');
 
   // Stats
   document.getElementById('stat-total').textContent     = trades.length;
-  document.getElementById('stat-breakdown').textContent = `${wins.length}W · ${losses.length}L · ${open.length} open`;
+  document.getElementById('stat-breakdown').textContent = `${pureWins.length}W · ${bes.length}BE · ${losses.length}L · ${open.length} open`;
 
   const wr = closed.length ? ((wins.length/closed.length)*100).toFixed(1)+'%' : '—';
   document.getElementById('stat-winrate').textContent = wr;
@@ -498,12 +500,11 @@ function render() {
   document.getElementById('stat-worst-date').textContent= worstT ? worstT.date : '—';
 
   // Donut
-  const bes       = closed.filter(t=>t.result==='PARTIAL');
-  const donutData = [wins.length, losses.length, bes.length];
+  const donutData = [pureWins.length, losses.length, bes.length];
   const donutKeys = ['WIN','LOSS','PARTIAL'];
   const donutLbls = ['Win','Loss','PARTIAL'];
   const donutClrs = ['#00ff41','#ff2244','#00ccff'];
-  document.getElementById('donut-label').textContent = closed.length ? wins.length+'W / '+losses.length+'L' : '—';
+  document.getElementById('donut-label').textContent = closed.length ? pureWins.length+'W / '+losses.length+'L' : '—';
   document.getElementById('donut-legend').innerHTML = donutLbls.map((l,i) => donutData[i]>0 ? `
     <div onclick="setResultFilter('${donutKeys[i]}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 6px;border-radius:4px;transition:background 0.15s;"
       onmouseover="this.style.background='${donutClrs[i]}18'"
