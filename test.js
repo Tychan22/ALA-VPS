@@ -102,6 +102,30 @@ async function post(path, body) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+function randomTrade() {
+  const setups   = ["BO","SRR","SFP","BD"];
+  const sessions = ["ASIA","LONDON","NY"];
+  const types    = ["LONG","SHORT"];
+  const results  = ["tp","sl","be"];
+  const setup    = setups[Math.floor(Math.random()*setups.length)];
+  const session  = sessions[Math.floor(Math.random()*sessions.length)];
+  const type     = types[Math.floor(Math.random()*types.length)];
+  const result   = results[Math.floor(Math.random()*results.length)];
+  const entry    = +(3280+Math.random()*30).toFixed(2);
+  const sl       = +(entry-(2+Math.random()*8)).toFixed(2);
+  const tp       = +(entry+(15+Math.random()*30)).toFixed(2);
+  const tp1      = +(entry+(tp-entry)*0.4).toFixed(2);
+  const cts      = Math.ceil(Math.random()*4);
+  const rr       = ((tp-entry)/(entry-sl)).toFixed(2);
+  const pnl      = result==="tp" ? +(100+Math.random()*600).toFixed(0)
+                 : result==="be" ? +(50+Math.random()*150).toFixed(0)
+                 : -300;
+  return {
+    open:  { symbol:"MGC1!", action:"entry", type, setup, session, entry:String(entry), sl:String(sl), tp:String(tp), tp1:String(tp1), rr, cts:String(cts), risk:"300", timestamp:String(Date.now()) },
+    close: { symbol:"MGC1!", action:result,  type, setup, entry:String(entry), exit:String(result==="tp"?tp:result==="be"?entry:sl), tp1_exit:result!=="sl"?String(tp1):"", cts:String(cts), pnl:String(pnl), rr, risk:"300", timestamp:String(Date.now()+300000) },
+  };
+}
+
 const cmd = process.argv[2] || "open";
 
 (async () => {
@@ -118,5 +142,13 @@ const cmd = process.argv[2] || "open";
     console.log("\n⏳ waiting 3s...");
     await sleep(3000);
     await post("/signal", fakeWin);
+  }
+  if (cmd === "random") {
+    const { open, close } = randomTrade();
+    console.log("\n🎲 Setup:", open.setup, "| Session:", open.session, "| Type:", open.type, "| Result:", close.action.toUpperCase());
+    await post("/signal", open);
+    console.log("\n⏳ waiting 4s...");
+    await sleep(4000);
+    await post("/signal", close);
   }
 })();
