@@ -314,7 +314,7 @@ function clearSettings() {
       <div ondblclick="openSettings()" style="cursor:pointer;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:1px solid #1a2e1a;margin-top:14px;padding-top:12px;text-align:center;font-size:9px;letter-spacing:2px;color:#3a6e3a;">
         SYSTEM UPTIME<br>
         <span id="uptime-counter" style="color:#00ff41;font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;margin-top:4px;display:block;">—</span>
-        <span style="font-size:8px;color:#1e3e1e;letter-spacing:2px;margin-top:4px;display:block;">SINCE MAY 31 2026</span>
+        <span style="font-size:8px;color:#1e3e1e;letter-spacing:2px;margin-top:4px;display:block;">SINCE JUN 29 2026</span>
       </div>
     </div>
   </div>
@@ -718,7 +718,7 @@ syncFromVPS();
 setInterval(syncFromVPS, 30000);
 
 // ── UPTIME ────────────────────────────────────────────────────────────────────
-const START_DATE = new Date('2026-05-31T00:00:00-04:00');
+const START_DATE = new Date('2026-06-29T00:00:00-04:00');
 function updateUptime() {
   const diff = new Date() - START_DATE;
   const days = Math.floor(diff/(1000*60*60*24));
