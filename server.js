@@ -220,9 +220,9 @@ async function handleClose(req, res, result) {
   const time   = tsDate.toLocaleString("en-US", { timeZone: "America/New_York", hour12: false });
 
   const pen        = pending[symbol] || {};
-  const tradeEntry = entry     || pen.entry;
-  const tradeSL    = sl        || pen.sl;
-  const tradeTP    = tp        || pen.tp;
+  const tradeEntry = (entry && entry !== "NaN") ? entry : pen.entry;
+  const tradeSL    = (sl    && sl    !== "NaN") ? sl    : pen.sl;
+  const tradeTP    = (tp    && tp    !== "NaN") ? tp    : pen.tp;
   const tradeSetup = setup     || pen.setup  || "—";
   const tradeDir   = type      || pen.direction || "LONG";
   const tradeCts   = cts       || pen.cts    || null;
@@ -373,9 +373,9 @@ async function handleBE(req, res) {
   // Resolve pending FIRST — pen must exist before msg is built
   const openTrade  = pending[symbol] || null;
   const pen        = openTrade || {};
-  const tradeEntry = entry     || pen.entry;
-  const tradeSL    = sl        || pen.sl;
-  const tradeTP    = tp        || pen.tp;
+  const tradeEntry = (entry && entry !== "NaN") ? entry : pen.entry;
+  const tradeSL    = (sl    && sl    !== "NaN") ? sl    : pen.sl;
+  const tradeTP    = (tp    && tp    !== "NaN") ? tp    : pen.tp;
   const tradeSetup = setup     || pen.setup  || "—";
   const tradeCts   = cts       || pen.cts    || null;
   const tradeDir   = type      || pen.direction || "LONG";
