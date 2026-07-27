@@ -242,8 +242,8 @@ async function handleOpen(req, res) {
   }
 }
 
-// ─── CLOSE HANDLER (WIN or LOSS) ──────────────────────────────────────────────
-async function handleClose(req, res, result) {
+// ─── CLOSE HANDLER (WIN or LOSS; FLATTEN gets reclassified below) ────────────
+async function handleClose(req, res, resultIn) {
   const {
     symbol = "MGC1!", entry, exit, tp, sl,
     timestamp, action,
@@ -251,7 +251,17 @@ async function handleClose(req, res, result) {
     type, cts, tp1_exit,
   } = req.body;
 
-  console.log(`[CLOSE/${result}]`, req.body);
+  const pnl = payloadPnl !== undefined ? parseFloat(payloadPnl) : null;
+
+  // FLATTEN (EOD rollover) isn't its own stat category — a flatten that's
+  // ahead is a win, one that's behind is a loss, same as any other close.
+  // We keep the ORIGINAL reason ("eod_rollover") separately for context so
+  // Telegram/the popup can still say how it closed, without needing every
+  // dashboard chart to special-case a third result type.
+  const isEodFlatten = resultIn === "FLATTEN";
+  const result = isEodFlatten ? (pnl !== null && pnl < 0 ? "LOSS" : "WIN") : resultIn;
+
+  console.log(`[CLOSE/${resultIn}${isEodFlatten ? " -> " + result : ""}]`, req.body);
 
   const tsNum  = parseInt(timestamp);
   const tsDate = timestamp ? (tsNum > 1e12 ? new Date(tsNum) : new Date(timestamp)) : new Date();
@@ -266,7 +276,7 @@ async function handleClose(req, res, result) {
     || (action && /long/i.test(action)  ? "LONG"  : null)
     || (type === "LONG" || type === "SHORT" ? type : "LONG");
   const tradeCts   = cts       || pen.cts    || null;
-  const exitPrice  = exit      || (result === "WIN" ? tradeTP : tradeSL) || "—";
+  const exitPrice  = exit || (result === "WIN" ? tradeTP : tradeSL) || "—";
 
   const rr = payloadRR && payloadRR !== "NaN"
     ? parseFloat(payloadRR).toFixed(2)
@@ -274,11 +284,10 @@ async function handleClose(req, res, result) {
         ? (Math.abs(parseFloat(tradeTP) - parseFloat(tradeEntry)) / Math.abs(parseFloat(tradeEntry) - parseFloat(tradeSL))).toFixed(2)
         : null);
 
-  const pnl = payloadPnl !== undefined ? parseFloat(payloadPnl) : null;
-
   // Build Telegram message
   let msgLines;
-  const emoji = result === "WIN" ? "✅" : "❌";
+  const emoji = isEodFlatten ? "🔔" : (result === "WIN" ? "✅" : "❌");
+  const closeLabel = isEodFlatten ? `EOD FLATTEN (${result})` : result;
 
   if (result === "WIN" && tp1_exit) {
     // Partial happened — show full breakdown
@@ -286,7 +295,7 @@ async function handleClose(req, res, result) {
     const partialCts = Math.floor(totalCts / 2);
     const remainCts  = totalCts - partialCts;
     msgLines = [
-      `${emoji} <b>ALA CLOSED — WIN ${symbol}</b>`,
+      `${emoji} <b>ALA CLOSED — ${closeLabel} ${symbol}</b>`,
       ``,
       `📍 Entry:    ${tradeEntry ?? "—"}`,
       `📤 TP1:      ${fmtCts(partialCts)} @ ${tp1_exit}`,
@@ -297,7 +306,7 @@ async function handleClose(req, res, result) {
     ];
   } else {
     msgLines = [
-      `${emoji} <b>ALA CLOSED — ${result} ${symbol}</b>`,
+      `${emoji} <b>ALA CLOSED — ${closeLabel} ${symbol}</b>`,
       ``,
       `📍 Entry:    ${tradeEntry ?? "—"}`,
       `🚪 Exit:     ${exitPrice}`,
@@ -329,6 +338,7 @@ async function handleClose(req, res, result) {
       tp:        tradeTP,
       exit:      exitPrice,
       result,
+      exitReason: isEodFlatten ? "eod_rollover" : (result === "WIN" ? "tp" : "sl"),
       rr,
       pnl,
       imgOpen,
@@ -521,6 +531,7 @@ app.post("/signal", async (req, res) => {
   console.log("[/signal] action:", action, "body:", JSON.stringify(req.body));
   if (action === "tp")      return handleClose(req, res, "WIN");
   if (action === "sl")      return handleClose(req, res, "LOSS");
+  if (action === "eod_rollover") return handleClose(req, res, "FLATTEN");
   if (action === "be")      return handleBE(req, res);
   if (action === "partial") return handlePartial(req, res);
   if (action === "range_detected") return handleRangeDetected(req, res);
