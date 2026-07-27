@@ -772,14 +772,14 @@ function renderEventLog() {
     return;
   }
 
-  const wasAtBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 4;
-  log.innerHTML = events.map(e => {
+  const wasAtTop = log.scrollTop <= 4;
+  log.innerHTML = [...events].reverse().map(e => {
     const d = new Date(e.ts);
     const stamp = `[${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()} ${d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}]`;
     return `<div class="event-line"><span class="event-ts">${stamp}</span> <span class="${eventClass(e)}">${e.message}</span></div>`;
   }).join('');
 
-  if (wasAtBottom) log.scrollTop = log.scrollHeight;
+  if (wasAtTop) log.scrollTop = 0;
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
