@@ -513,7 +513,13 @@ async function handleRangeDetected(req, res) {
   try {
     res.json({ ok: true, action: "range_detected", symbol });
     pushEvent("range_detected", `Range Detected. Pinged Telegram`);
-    await sendTelegram(msg);
+
+    const chartBuffer = await getChartBuffer(symbol);
+    if (chartBuffer) {
+      await sendTelegramPhoto(msg, chartBuffer);
+    } else {
+      await sendTelegram(msg);
+    }
   } catch (err) {
     console.error("[RANGE_DETECTED] Error:", err.message);
   }
