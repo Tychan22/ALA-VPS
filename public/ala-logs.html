@@ -142,7 +142,7 @@
 
   /* ── MINI EVENT LOG ── */
   .event-log {
-    flex: 1; min-height:110px; overflow-y:auto; font-family:'Share Tech Mono',monospace; font-size:11px;
+    flex:1; min-height:0; overflow-y:auto; font-family:'Share Tech Mono',monospace; font-size:11px;
     background:#050a05; border:1px solid #1a2e1a; border-radius:2px; padding:6px 8px;
   }
   .event-log::-webkit-scrollbar { width:6px; }
@@ -340,11 +340,11 @@
 
   <!-- WIN RATE CARDS -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-    <div class="panel" style="display:flex;flex-direction:column;">
+    <div class="panel" style="display:flex;flex-direction:column;height:310px;">
       <div class="panel-title">Live Feed <span id="event-count-label">—</span></div>
       <div class="event-log" id="event-log"></div>
     </div>
-    <div class="panel">
+    <div class="panel" style="height:310px;">
       <div class="panel-title">Win Rate by Day <span id="wr-dow-label">—</span></div>
       <canvas id="wr-dow-chart" height="110"></canvas>
     </div>
