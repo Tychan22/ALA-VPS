@@ -16,9 +16,12 @@ const CHART_IMG_KEY      = process.env.CHART_IMG_KEY;
 const WEBHOOK_SECRET     = process.env.WEBHOOK_SECRET;
 
 // ─── FILE STORAGE ─────────────────────────────────────────────────────────────
-const DATA_DIR    = process.env.DATA_DIR || path.join(__dirname);
-const TRADES_FILE = path.join(DATA_DIR, "trades.json");
-const SCREENS_DIR = path.join(DATA_DIR, "screenshots");
+const DATA_DIR      = process.env.DATA_DIR || path.join(__dirname);
+const TRADES_FILE   = path.join(DATA_DIR, "trades.json");
+const EVENTS_FILE   = path.join(DATA_DIR, "events.json");
+const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
+const SCREENS_DIR   = path.join(DATA_DIR, "screenshots");
+const MAX_EVENTS    = 200;
 
 if (!fs.existsSync(SCREENS_DIR)) fs.mkdirSync(SCREENS_DIR, { recursive: true });
 
@@ -31,6 +34,41 @@ function readTrades() {
 
 function writeTrades(trades) {
   fs.writeFileSync(TRADES_FILE, JSON.stringify(trades, null, 2));
+}
+
+// ─── MINI EVENT LOG — lightweight scrolling feed, separate from trades.json.
+// Range detections show up here but never in trades.json (Telegram-only,
+// per design). Entries and closes appear in BOTH: here for the live feed,
+// and in trades.json for the full trade record.
+function readEvents() {
+  try {
+    if (!fs.existsSync(EVENTS_FILE)) return [];
+    return JSON.parse(fs.readFileSync(EVENTS_FILE, "utf8"));
+  } catch { return []; }
+}
+
+function writeEvents(events) {
+  fs.writeFileSync(EVENTS_FILE, JSON.stringify(events, null, 2));
+}
+
+function pushEvent(type, message) {
+  const events = readEvents();
+  events.push({ type, message, ts: Date.now() });
+  while (events.length > MAX_EVENTS) events.shift();
+  writeEvents(events);
+}
+
+// ─── SETTINGS — autotrading toggle + LuneFi webhook config, VPS-persisted so
+// it stays in sync across browsers/devices, not just localStorage.
+function readSettings() {
+  try {
+    if (!fs.existsSync(SETTINGS_FILE)) return { luneWebhook: "", luneStrategyId: "", autotrading: false };
+    return JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8"));
+  } catch { return { luneWebhook: "", luneStrategyId: "", autotrading: false }; }
+}
+
+function writeSettings(settings) {
+  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
 }
 
 function getTradingDate() {
@@ -121,9 +159,6 @@ function fmtCts(n) {
   return isNaN(c) ? "?" : `${c} ct${c !== 1 ? "s" : ""}`;
 }
 
-const SETUP_DISPLAY = { BO: "BO", SRR: "SRR", SFP: "SFP", BD: "BD" };
-function fmtSetup(s) { return SETUP_DISPLAY[s] || s || "—"; }
-
 function authCheck(req, res) {
   if (!WEBHOOK_SECRET) return true;
   if (req.headers["x-ala-secret"] !== WEBHOOK_SECRET) {
@@ -138,12 +173,18 @@ async function handleOpen(req, res) {
   const {
     symbol = "MGC1!", interval = "5",
     entry, sl, tp, tp1,
-    session, timestamp, risk,
-    rr: payloadRR, type = "LONG", direction,
-    setup = "—", cts,
+    timestamp, risk,
+    rr: payloadRR, action, type, direction,
+    cts,
   } = req.body;
 
-  const dir = direction || type || "LONG";
+  // Direction MUST come from action/direction, not `type` — the new Pine script
+  // repurposes `type` for RANGE_BREAKOUT/RANGE_BREAKDOWN, which is NOT a direction.
+  const dir = direction
+    || (action && /short/i.test(action) ? "SHORT" : null)
+    || (action && /long/i.test(action)  ? "LONG"  : null)
+    || (type === "LONG" || type === "SHORT" ? type : "LONG");
+
   console.log("[OPEN]", req.body);
 
   const tsNum  = parseInt(timestamp);
@@ -160,8 +201,6 @@ async function handleOpen(req, res) {
   const lines = [
     `${emoji} <b>ALA SIGNAL — ${dir} ${symbol}</b>`,
     ``,
-    `📐 Setup:    ${fmtSetup(setup)}`,
-    `⏱  Session:  ${session || "—"}`,
     cts ? `📦 Size:     ${fmtCts(cts)}` : null,
     ``,
     `📍 Entry:    ${entry ?? "—"}`,
@@ -176,18 +215,17 @@ async function handleOpen(req, res) {
   try {
     pending[symbol] = {
       symbol, entry, sl, tp, tp1,
-      session: session || "—",
       date:    getTradingDate(),
       ts:      Date.now(),
       imgOpen: null,
       risk:    risk || null,
       rr,
       direction: dir,
-      setup,
       cts: cts || null,
     };
 
     res.json({ ok: true, action: "open", symbol });
+    pushEvent("entry", `${dir} Detected. Pinged Telegram`);
 
     const chartBuffer = await getChartBuffer(symbol);
     let imgOpen = null;
@@ -208,9 +246,9 @@ async function handleOpen(req, res) {
 async function handleClose(req, res, result) {
   const {
     symbol = "MGC1!", entry, exit, tp, sl,
-    session, timestamp,
+    timestamp, action,
     rr: payloadRR, pnl: payloadPnl,
-    type, setup, cts, tp1_exit,
+    type, cts, tp1_exit,
   } = req.body;
 
   console.log(`[CLOSE/${result}]`, req.body);
@@ -223,8 +261,10 @@ async function handleClose(req, res, result) {
   const tradeEntry = (entry && entry !== "NaN") ? entry : pen.entry;
   const tradeSL    = (sl    && sl    !== "NaN") ? sl    : pen.sl;
   const tradeTP    = (tp    && tp    !== "NaN") ? tp    : pen.tp;
-  const tradeSetup = setup     || pen.setup  || "—";
-  const tradeDir   = type      || pen.direction || "LONG";
+  const tradeDir   = pen.direction
+    || (action && /short/i.test(action) ? "SHORT" : null)
+    || (action && /long/i.test(action)  ? "LONG"  : null)
+    || (type === "LONG" || type === "SHORT" ? type : "LONG");
   const tradeCts   = cts       || pen.cts    || null;
   const exitPrice  = exit      || (result === "WIN" ? tradeTP : tradeSL) || "—";
 
@@ -248,7 +288,6 @@ async function handleClose(req, res, result) {
     msgLines = [
       `${emoji} <b>ALA CLOSED — WIN ${symbol}</b>`,
       ``,
-      `📐 Setup:    ${fmtSetup(tradeSetup)}`,
       `📍 Entry:    ${tradeEntry ?? "—"}`,
       `📤 TP1:      ${fmtCts(partialCts)} @ ${tp1_exit}`,
       `🚪 TP2:      ${fmtCts(remainCts)} @ ${exitPrice}`,
@@ -260,7 +299,6 @@ async function handleClose(req, res, result) {
     msgLines = [
       `${emoji} <b>ALA CLOSED — ${result} ${symbol}</b>`,
       ``,
-      `📐 Setup:    ${fmtSetup(tradeSetup)}`,
       `📍 Entry:    ${tradeEntry ?? "—"}`,
       `🚪 Exit:     ${exitPrice}`,
       `💰 PnL:      ${fmtPnl(pnl)}`,
@@ -286,7 +324,6 @@ async function handleClose(req, res, result) {
     const trade = {
       symbol,
       date:      pen.date || getTradingDate(),
-      session:   session  || pen.session || "—",
       entry:     tradeEntry,
       sl:        tradeSL,
       tp:        tradeTP,
@@ -298,7 +335,6 @@ async function handleClose(req, res, result) {
       imgClose,
       risk:      pen.risk || null,
       direction: tradeDir,
-      setup:     tradeSetup,
       ts:        pen.ts || Date.now(),
       tsClose:   Date.now(),
       orphan:    !openTrade,
@@ -309,6 +345,7 @@ async function handleClose(req, res, result) {
     writeTrades(trades);
 
     res.json({ ok: true, action: result.toLowerCase(), symbol });
+    pushEvent("close", `Trade Complete. ${result} logged in Ala Logs`);
     console.log(`[CLOSE] ${result} logged. pnl: ${pnl}`);
   } catch (err) {
     console.error("[CLOSE] Error:", err.message);
@@ -321,7 +358,7 @@ async function handlePartial(req, res) {
   const {
     symbol = "MGC1!", entry, tp1, tp,
     partial_cts, partial_profit,
-    timestamp, setup,
+    timestamp,
   } = req.body;
 
   console.log("[PARTIAL]", req.body);
@@ -335,12 +372,10 @@ async function handlePartial(req, res) {
   const totalCts   = parseInt(pen.cts) || 0;
   const pCts       = parseInt(partial_cts) || Math.floor(totalCts / 2);
   const remainCts  = totalCts - pCts || "?";
-  const tradeSetup = setup || pen.setup || "—";
 
   const msg = [
     `⚡ <b>ALA PARTIAL — TP1 HIT ${symbol}</b>`,
     ``,
-    `📐 Setup:    ${fmtSetup(tradeSetup)}`,
     `📤 Exited:   ${fmtCts(pCts)} @ ${tp1 ?? "—"}  (${fmtPnl(partial_profit)})`,
     `📦 Riding:   ${fmtCts(remainCts)} → ${tp ?? "—"}`,
     `🔒 SL moved to BE`,
@@ -364,8 +399,8 @@ async function handlePartial(req, res) {
 async function handleBE(req, res) {
   const {
     symbol = "MGC1!", entry, exit, tp, sl,
-    timestamp, pnl: payloadPnl,
-    setup, cts, tp1_exit, type,
+    timestamp, pnl: payloadPnl, action,
+    cts, tp1_exit, type,
   } = req.body;
 
   console.log("[BE]", req.body);
@@ -376,9 +411,11 @@ async function handleBE(req, res) {
   const tradeEntry = (entry && entry !== "NaN") ? entry : pen.entry;
   const tradeSL    = (sl    && sl    !== "NaN") ? sl    : pen.sl;
   const tradeTP    = (tp    && tp    !== "NaN") ? tp    : pen.tp;
-  const tradeSetup = setup     || pen.setup  || "—";
   const tradeCts   = cts       || pen.cts    || null;
-  const tradeDir   = type      || pen.direction || "LONG";
+  const tradeDir   = pen.direction
+    || (action && /short/i.test(action) ? "SHORT" : null)
+    || (action && /long/i.test(action)  ? "LONG"  : null)
+    || (type === "LONG" || type === "SHORT" ? type : "LONG");
   const pnl        = payloadPnl !== undefined ? parseFloat(payloadPnl) : null;
   const totalCts   = parseInt(tradeCts) || 1;
   const partialCts = Math.floor(totalCts / 2);
@@ -392,7 +429,6 @@ async function handleBE(req, res) {
   const msg = [
     `⚪ <b>ALA CLOSED — BE ${symbol}</b>`,
     ``,
-    `📐 Setup:    ${fmtSetup(tradeSetup)}`,
     `📍 Entry:    ${tradeEntry ?? "—"}`,
     `📤 TP1:      ${fmtCts(partialCts)} @ ${tp1_exit ?? "—"}`,
     `🚪 2nd half: ${fmtCts(remainCts)} stopped at BE`,
@@ -416,7 +452,6 @@ async function handleBE(req, res) {
     const trade = {
       symbol,
       date:      pen.date || getTradingDate(),
-      session:   pen.session || "—",
       entry:     tradeEntry,
       sl:        tradeSL,
       tp:        tradeTP,
@@ -428,7 +463,6 @@ async function handleBE(req, res) {
       imgClose,
       risk:      pen.risk || null,
       direction: tradeDir,
-      setup:     tradeSetup,
       ts:        pen.ts || Date.now(),
       tsClose:   Date.now(),
       orphan:    !openTrade,
@@ -446,6 +480,35 @@ async function handleBE(req, res) {
   }
 }
 
+// ─── RANGE DETECTED — Telegram only, NEVER logged to trades.json ─────────────
+async function handleRangeDetected(req, res) {
+  const { symbol = "MGC1!", high, low, timestamp } = req.body;
+
+  console.log("[RANGE_DETECTED]", req.body);
+
+  const tsDate = timestamp
+    ? (parseInt(timestamp) > 1e12 ? new Date(parseInt(timestamp)) : new Date(timestamp))
+    : new Date();
+  const time = tsDate.toLocaleString("en-US", { timeZone: "America/New_York", hour12: false });
+
+  const msg = [
+    `📐 <b>ALA RANGE DETECTED — ${symbol}</b>`,
+    ``,
+    `🔼 High:     ${high ?? "—"}`,
+    `🔽 Low:      ${low ?? "—"}`,
+    ``,
+    `🕒 Time:     ${time} EST`,
+  ].join("\n");
+
+  try {
+    res.json({ ok: true, action: "range_detected", symbol });
+    pushEvent("range_detected", `Range Detected. Pinged Telegram`);
+    await sendTelegram(msg);
+  } catch (err) {
+    console.error("[RANGE_DETECTED] Error:", err.message);
+  }
+}
+
 // ─── ROUTES ───────────────────────────────────────────────────────────────────
 app.get("/", (req, res) => res.json({ status: "ALA VPS online", version: "3.0.0" }));
 app.use("/screenshots", express.static(SCREENS_DIR));
@@ -460,6 +523,7 @@ app.post("/signal", async (req, res) => {
   if (action === "sl")      return handleClose(req, res, "LOSS");
   if (action === "be")      return handleBE(req, res);
   if (action === "partial") return handlePartial(req, res);
+  if (action === "range_detected") return handleRangeDetected(req, res);
   return handleOpen(req, res); // "entry" or anything unrecognized
 });
 
@@ -468,6 +532,20 @@ app.post("/signal/open",  async (req, res) => { if (!authCheck(req, res)) return
 app.post("/signal/close", async (req, res) => { if (!authCheck(req, res)) return; return handleClose(req, res, "WIN"); });
 
 app.get("/trades", (req, res) => res.json(readTrades()));
+app.get("/events", (req, res) => res.json(readEvents()));
+
+app.get("/settings", (req, res) => res.json(readSettings()));
+app.post("/settings", (req, res) => {
+  const { luneWebhook, luneStrategyId, autotrading } = req.body;
+  const current = readSettings();
+  const updated = {
+    luneWebhook:    luneWebhook    !== undefined ? luneWebhook    : current.luneWebhook,
+    luneStrategyId: luneStrategyId !== undefined ? luneStrategyId : current.luneStrategyId,
+    autotrading:    autotrading    !== undefined ? autotrading    : current.autotrading,
+  };
+  writeSettings(updated);
+  res.json({ ok: true, settings: updated });
+});
 
 app.post("/log", (req, res) => {
   const trade  = { ...req.body, ts: req.body.ts || Date.now() };

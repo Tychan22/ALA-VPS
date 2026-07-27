@@ -4,35 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ALA GOLD LOGS</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
-// ── SETTINGS ─────────────────────────────────────────────────────────────────
-function openSettings() {
-  document.getElementById('tp-webhook').value   = localStorage.getItem('ala_tp_webhook')   || '';
-  document.getElementById('lune-webhook').value = localStorage.getItem('ala_lune_webhook') || '';
-  document.getElementById('settings-status').textContent = '';
-  document.getElementById('settings-overlay').classList.add('active');
-}
-function closeSettings() {
-  document.getElementById('settings-overlay').classList.remove('active');
-}
-function saveSettings() {
-  localStorage.setItem('ala_tp_webhook',   document.getElementById('tp-webhook').value.trim());
-  localStorage.setItem('ala_lune_webhook', document.getElementById('lune-webhook').value.trim());
-  document.getElementById('settings-status').textContent = '✓ SAVED';
-  document.getElementById('settings-status').style.color = 'var(--green)';
-  setTimeout(() => { document.getElementById('settings-status').textContent = ''; }, 2000);
-}
-function clearSettings() {
-  localStorage.removeItem('ala_tp_webhook');
-  localStorage.removeItem('ala_lune_webhook');
-  document.getElementById('tp-webhook').value   = '';
-  document.getElementById('lune-webhook').value = '';
-  document.getElementById('settings-status').textContent = 'CLEARED';
-  document.getElementById('settings-status').style.color = 'var(--red)';
-  setTimeout(() => { document.getElementById('settings-status').textContent = ''; }, 2000);
-}
-
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap');
 
@@ -81,6 +53,8 @@ function clearSettings() {
     margin-bottom: 28px; padding-bottom: 16px;
     border-bottom: 1px solid var(--border);
   }
+
+  .header-right { display: flex; align-items: center; gap: 16px; }
 
   .logo {
     font-family: var(--sans); font-size: 28px; font-weight: 700;
@@ -158,11 +132,6 @@ function clearSettings() {
   .badge.ghost { background:#1a1a1a;            color:#666;          border:1px solid #444; }
   .badge.long  { background:#001a2a;            color:#2196F3;       border:1px solid #2196F3; }
   .badge.short { background:#1a0010;            color:#ff2244;       border:1px solid #ff2244; }
-  /* Setup badges */
-  .badge.bo    { background:#001233; color:#4fc3f7; border:1px solid #4fc3f7; }
-  .badge.srr   { background:#00332a; color:#00ffcc; border:1px solid #00ffcc; }
-  .badge.sfp   { background:#1a000a; color:#ff6090; border:1px solid #ff6090; }
-  .badge.bd    { background:#1a0d00; color:#ffaa00; border:1px solid #ffaa00; }
 
   .pnl-pos  { color:var(--green); }
   .pnl-neg  { color:var(--red); }
@@ -170,6 +139,22 @@ function clearSettings() {
 
   .empty-state { text-align:center; padding:60px; color:var(--text-muted); font-size:12px; letter-spacing:2px; }
   .empty-state .big { font-size:32px; margin-bottom:12px; }
+
+  /* ── MINI EVENT LOG ── */
+  .event-log {
+    height:110px; overflow-y:auto; font-family:'Share Tech Mono',monospace; font-size:11px;
+    background:#050a05; border:1px solid #1a2e1a; border-radius:2px; padding:6px 8px;
+  }
+  .event-log::-webkit-scrollbar { width:6px; }
+  .event-log::-webkit-scrollbar-thumb { background:#1a2e1a; }
+  .event-line { padding:2px 0; white-space:nowrap; }
+  .event-ts   { color:#3a6e3a; }
+  .event-range   { color:#00ccff; }
+  .event-entry-long  { color:#2196F3; }
+  .event-entry-short { color:#ff2244; }
+  .event-close-win  { color:var(--green); }
+  .event-close-loss { color:var(--red); }
+  .event-empty { color:#3a6e3a; text-align:center; padding:20px 0; }
 
   /* ── BUTTONS ── */
   .btn {
@@ -238,6 +223,34 @@ function clearSettings() {
   .settings-input::placeholder { color:var(--text-muted); }
   .settings-row { display:flex; gap:8px; margin-top:4px; }
   .settings-status { font-size:10px; color:var(--text-dim); letter-spacing:1px; margin-top:8px; min-height:16px; }
+  .autotrading-toggle { display:flex; align-items:center; justify-content:space-between; padding:12px; background:var(--bg); border:1px solid var(--border); margin-bottom:16px; }
+  .toggle-label { font-size:11px; letter-spacing:2px; color:var(--text-dim); }
+  .toggle-switch { width:40px; height:20px; background:var(--border); border-radius:10px; cursor:pointer; position:relative; transition:background 0.2s; }
+  .toggle-switch.on { background:var(--green-dim); }
+  .toggle-switch::after { content:''; position:absolute; top:3px; left:3px; width:14px; height:14px; border-radius:50%; background:#fff; transition:left 0.2s; }
+  .toggle-switch.on::after { left:23px; }
+  .autotrading-status { font-size:9px; letter-spacing:2px; margin-top:4px; }
+  .autotrading-status.on { color:var(--green); }
+  .autotrading-status.off { color:var(--text-muted); }
+
+  /* PASSWORD LOCK */
+  .pw-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:300; align-items:center; justify-content:center; }
+  .pw-overlay.active { display:flex; }
+  .pw-box { background:var(--bg2); border:1px solid var(--border); border-top:2px solid var(--green-dim); padding:32px; width:360px; text-align:center; position:relative; transition:transform 0.1s; }
+  .pw-box.shake { animation:shake 0.4s ease; }
+  .pw-box.success { animation:glow-success 0.5s ease; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-6px)} 80%{transform:translateX(6px)} }
+  @keyframes glow-success { 0%{box-shadow:0 0 0 rgba(0,255,65,0)} 50%{box-shadow:0 0 40px rgba(0,255,65,0.4)} 100%{box-shadow:0 0 0 rgba(0,255,65,0)} }
+  .pw-title { font-family:var(--sans); font-size:14px; font-weight:600; color:var(--green); letter-spacing:3px; margin-bottom:6px; }
+  .pw-sub { font-size:9px; color:var(--text-dim); letter-spacing:2px; margin-bottom:20px; }
+  .pw-input { width:100%; background:var(--bg); border:1px solid var(--border); color:var(--green); font-family:var(--mono); font-size:14px; padding:10px 14px; outline:none; text-align:center; letter-spacing:4px; transition:border-color 0.2s; }
+  .pw-input:focus { border-color:var(--green-dim); }
+  .pw-input.error { border-color:var(--red); color:var(--red); }
+  .pw-input.ok { border-color:var(--green); }
+  .pw-status { font-size:10px; letter-spacing:2px; margin-top:10px; min-height:16px; }
+  .pw-status.ok  { color:var(--green); }
+  .pw-status.err { color:var(--red); }
+  .pw-hint { font-size:9px; color:var(--text-muted); letter-spacing:1px; margin-top:14px; }
 </style>
 </head>
 <body>
@@ -248,9 +261,13 @@ function clearSettings() {
 
   <header>
     <div class="logo">ALA <span>//</span> GOLD</div>
-    <div class="status">
-      <div class="dot"></div>
-      <span id="last-sync">SYNCING...</span>
+    <div class="header-right">
+      <div class="status">
+        <div class="dot"></div>
+        <span id="last-sync">SYNCING...</span>
+      </div>
+      <button class="btn" onclick="requireAdmin(()=>window.location.href='/ala-gold-hermes.html')" style="padding:5px 14px;font-size:10px">⚡ HERMES</button>
+      <button class="btn" onclick="requireAdmin(openSettingsWrapper)" style="padding:5px 14px;font-size:10px">⚙ SETTINGS</button>
     </div>
   </header>
 
@@ -311,10 +328,10 @@ function clearSettings() {
       <div class="panel-title">Calendar <span id="cal-month">—</span></div>
       <div class="cal-grid" id="cal-labels"></div>
       <div class="cal-grid" id="cal-grid"></div>
-      <div ondblclick="openSettings()" style="cursor:pointer;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:1px solid #1a2e1a;margin-top:14px;padding-top:12px;text-align:center;font-size:9px;letter-spacing:2px;color:#3a6e3a;">
-        SYSTEM UPTIME<br>
+      <div ondblclick="requireAdmin(openSettingsWrapper)" style="cursor:pointer;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:1px solid #1a2e1a;margin-top:14px;padding-top:12px;text-align:center;font-size:9px;letter-spacing:2px;color:#3a6e3a;">
+        TODAY<br>
         <span id="uptime-counter" style="color:#00ff41;font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;margin-top:4px;display:block;">—</span>
-        <span style="font-size:8px;color:#1e3e1e;letter-spacing:2px;margin-top:4px;display:block;">SINCE JUN 29 2026</span>
+        <div id="autotrading-pill" style="margin-top:8px;padding:2px 12px;border-radius:2px;font-size:9px;letter-spacing:2px;border:1px solid var(--border);color:var(--text-muted);">AUTOTRADING OFF</div>
       </div>
     </div>
   </div>
@@ -323,12 +340,12 @@ function clearSettings() {
   <!-- WIN RATE CARDS -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
     <div class="panel">
-      <div class="panel-title">Win Rate by Setup <span id="wr-setup-label">—</span></div>
-      <canvas id="wr-setup-chart" height="110"></canvas>
+      <div class="panel-title">Live Feed <span id="event-count-label">—</span></div>
+      <div class="event-log" id="event-log"></div>
     </div>
     <div class="panel">
-      <div class="panel-title">Win Rate by Session <span id="wr-sess-label">—</span></div>
-      <canvas id="wr-sess-chart" height="110"></canvas>
+      <div class="panel-title">Win Rate by Day <span id="wr-dow-label">—</span></div>
+      <canvas id="wr-dow-chart" height="110"></canvas>
     </div>
   </div>
 
@@ -343,8 +360,6 @@ function clearSettings() {
       <thead>
         <tr>
           <th>Date</th>
-          <th>Session</th>
-          <th>Setup</th>
           <th>Bias</th>
           <th>Entry</th>
           <th>Stop</th>
@@ -398,13 +413,12 @@ function getTrades() {
 }
 function saveTrades(t) { localStorage.setItem('ala_gold_trades', JSON.stringify(t)); }
 
-// ── SETUP HELPERS ─────────────────────────────────────────────────────────────
-const SETUP_CLASS = { BO:'bo', SRR:'srr', SFP:'sfp', BD:'bd' };
-const SETUP_LABEL = { BO:'BO', SRR:'SRR', SFP:'SFP', BD:'BD' };
-function setupBadge(s) {
-  const cls   = SETUP_CLASS[s] || 'open';
-  const label = SETUP_LABEL[s] || s || '—';
-  return `<span class="badge ${cls}">${label}</span>`;
+// ── DAY-OF-WEEK HELPER ─────────────────────────────────────────────────────────
+const DOW_LABELS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+function dowLabel(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr + 'T12:00:00');
+  return isNaN(d) ? '—' : DOW_LABELS[d.getDay()];
 }
 
 // ── MATH ──────────────────────────────────────────────────────────────────────
@@ -435,8 +449,7 @@ function effectiveRR(pnl, risk) {
 // ── FILTER STATE ──────────────────────────────────────────────────────────────
 
 let currentBiasFilter    = null;
-let currentSetupFilter   = null;
-let currentSessionFilter = null;
+let currentDowFilter     = null;
 let currentResultFilter = null;
 function setBiasFilter(v) {
   currentBiasFilter = v;
@@ -460,8 +473,7 @@ function render() {
   let trades = getTrades();
   if (currentResultFilter)  trades = trades.filter(t => t.result    === currentResultFilter);
   if (currentBiasFilter)    trades = trades.filter(t => t.direction === currentBiasFilter);
-  if (currentSetupFilter)   trades = trades.filter(t => t.setup     === currentSetupFilter);
-  if (currentSessionFilter) trades = trades.filter(t => (t.session||'').toUpperCase() === currentSessionFilter);
+  if (currentDowFilter)     trades = trades.filter(t => dowLabel(t.date) === currentDowFilter);
   const allTrades = getTrades();
   const filteredClosed = trades.filter(t => ['WIN','LOSS','PARTIAL'].includes(t.result));
 
@@ -539,8 +551,7 @@ function render() {
   });
 
 
-  renderWRChart('setup',   ['BO','SRR','SFP','BD'], 'wr-setup-chart', 'wr-setup-label');
-  renderWRChart('session', ['ASIA','LONDON','NY'],   'wr-sess-chart',  'wr-sess-label');
+  renderWRChart('dow', ['MON','TUE','WED','THU','FRI'], 'wr-dow-chart', 'wr-dow-label');
 
   // Calendar
   renderCalendar(allTrades);
@@ -568,8 +579,6 @@ function render() {
         : t.rr ? (parseFloat(t.rr)%1===0?parseInt(t.rr):parseFloat(t.rr).toFixed(1))+':1' : '—';
       return `<tr ondblclick="openPopupByIndex(${i})" style="cursor:pointer">
         <td>${t.date||'—'}</td>
-        <td>${t.session||'—'}</td>
-        <td>${setupBadge(t.setup)}</td>
         <td><span class="badge ${biasClass}">${biasLabel}</span></td>
         <td>${t.entry||'—'}</td>
         <td style="color:var(--red)">${t.sl||'—'}</td>
@@ -589,10 +598,10 @@ function render() {
 // ── WIN RATE CHARTS ──────────────────────────────────────────────────────────
 function renderWRChart(field, keys, canvasId, labelId) {
   const all = getTrades().filter(t => ['WIN','LOSS','PARTIAL'].includes(t.result));
-  const activeFilter = field === 'setup' ? currentSetupFilter : currentSessionFilter;
+  const activeFilter = field === 'direction' ? currentBiasFilter : currentDowFilter;
   const labels = [], data = [], realWR = [], colors = [], counts = [];
   keys.forEach(k => {
-    const grp  = all.filter(t => (field === 'session' ? (t.session||'').toUpperCase() : t.setup) === k);
+    const grp  = all.filter(t => (field === 'dow' ? dowLabel(t.date) : (t.direction||'LONG')) === k);
     const wins = grp.filter(t => t.result === 'WIN' || t.result === 'PARTIAL').length;
     const wr   = grp.length ? +(wins / grp.length * 100).toFixed(1) : 0;
     const isActive = activeFilter === k;
@@ -624,14 +633,14 @@ function renderWRChart(field, keys, canvasId, labelId) {
         if (!els.length) return;
         const clicked = keys[els[0].index];
         const idx = els[0].index;
-        if (field === 'setup') {
-          currentSetupFilter = currentSetupFilter === clicked ? null : clicked;
+        if (field === 'direction') {
+          currentBiasFilter = currentBiasFilter === clicked ? null : clicked;
         } else {
-          currentSessionFilter = currentSessionFilter === clicked ? null : clicked;
+          currentDowFilter = currentDowFilter === clicked ? null : clicked;
         }
         render();
         // set after render so it doesn't get overwritten
-        const activeVal = field === 'setup' ? currentSetupFilter : currentSessionFilter;
+        const activeVal = field === 'direction' ? currentBiasFilter : currentDowFilter;
         document.getElementById(labelId).textContent = activeVal
           ? counts[idx] + ' trades'
           : all.length + ' trades';
@@ -712,19 +721,77 @@ async function syncFromVPS() {
   } catch {}
 }
 
+// ── EVENT LOG ─────────────────────────────────────────────────────────────────
+function getEvents() {
+  try { return JSON.parse(localStorage.getItem('ala_gold_events')) || []; }
+  catch { return []; }
+}
+function saveEvents(e) { localStorage.setItem('ala_gold_events', JSON.stringify(e)); }
+
+async function syncEventsFromVPS() {
+  try {
+    const res  = await fetch(VPS_URL+'/events');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!Array.isArray(data)) return;
+
+    const local = getEvents();
+    const tsSet = new Set(local.map(e=>e.ts));
+    let added = 0;
+
+    data.forEach(e => {
+      if (!tsSet.has(e.ts)) { local.push(e); added++; }
+    });
+
+    if (added>0) {
+      local.sort((a,b)=>a.ts-b.ts);
+      while (local.length > 200) local.shift();
+      saveEvents(local);
+      renderEventLog();
+    }
+  } catch {}
+}
+
+function eventClass(e) {
+  if (e.type === 'range_detected') return 'event-range';
+  if (e.type === 'entry') return /SHORT/i.test(e.message) ? 'event-entry-short' : 'event-entry-long';
+  if (e.type === 'close') return /LOSS/i.test(e.message) ? 'event-close-loss' : 'event-close-win';
+  return '';
+}
+
+function renderEventLog() {
+  const log = document.getElementById('event-log');
+  const events = getEvents();
+  document.getElementById('event-count-label').textContent = events.length ? events.length + ' events' : '—';
+
+  if (events.length === 0) {
+    log.innerHTML = '<div class="event-empty">// waiting for signals...</div>';
+    return;
+  }
+
+  const wasAtBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 4;
+  log.innerHTML = events.map(e => {
+    const d = new Date(e.ts);
+    const stamp = `[${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()} ${d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}]`;
+    return `<div class="event-line"><span class="event-ts">${stamp}</span> <span class="${eventClass(e)}">${e.message}</span></div>`;
+  }).join('');
+
+  if (wasAtBottom) log.scrollTop = log.scrollHeight;
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 render();
 syncFromVPS();
 setInterval(syncFromVPS, 30000);
+renderEventLog();
+syncEventsFromVPS();
+setInterval(syncEventsFromVPS, 30000);
 
 // ── UPTIME ────────────────────────────────────────────────────────────────────
 const START_DATE = new Date('2026-06-29T00:00:00-04:00');
 function updateUptime() {
-  const diff = new Date() - START_DATE;
-  const days = Math.floor(diff/(1000*60*60*24));
-  const hrs  = Math.floor((diff%(1000*60*60*24))/(1000*60*60));
-  const mins = Math.floor((diff%(1000*60*60))/(1000*60));
-  document.getElementById('uptime-counter').textContent = `${days}D ${hrs}H ${mins}M`;
+  const now = new Date();
+  document.getElementById('uptime-counter').textContent = now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).toUpperCase();
 }
 updateUptime();
 setInterval(updateUptime, 60000);
@@ -752,7 +819,7 @@ function openPopup(t) {
   document.getElementById('popup-title').textContent = `${t.symbol||'MGC1!'} // ${t.result||'OPEN'} // ${t.date||'—'}`;
   const entryTime = t.ts      ? new Date(t.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
   const exitTime  = t.tsClose ? new Date(t.tsClose).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
-  document.getElementById('popup-meta').innerHTML = `<span style="color:var(--text-dim)">${t.session||'—'} SESSION</span> &nbsp;·&nbsp; <span style="color:var(--green)">ENTRY ${entryTime}</span> &nbsp;·&nbsp; <span style="color:var(--red)">EXIT ${exitTime}</span>`;
+  document.getElementById('popup-meta').innerHTML = `<span style="color:${t.direction==='SHORT'?'#ff2244':'#2196F3'}">${t.direction||'LONG'}</span> &nbsp;·&nbsp; <span style="color:var(--green)">ENTRY ${entryTime}</span> &nbsp;·&nbsp; <span style="color:var(--red)">EXIT ${exitTime}</span>`;
 
   const imgOpen  = document.getElementById('popup-img-open');
   const imgClose = document.getElementById('popup-img-close');
@@ -769,7 +836,7 @@ function openPopup(t) {
   if (!t.imgOpen)  { imgOpen.style.display='none';  if(onNS)onNS.style.display='flex'; }
   if (!t.imgClose) { imgClose.style.display='none'; if(clNS)clNS.style.display='flex'; }
 
-  document.getElementById('ps-setup').textContent = SETUP_LABEL[t.setup] || t.setup || '—';
+  document.getElementById('ps-bias').textContent = t.direction || '—';
   document.getElementById('ps-entry').textContent = t.entry || '—';
   document.getElementById('ps-sl').textContent    = t.sl    || '—';
   document.getElementById('ps-tp').textContent    = t.tp    || '—';
@@ -791,31 +858,147 @@ function closePopup(e) {
 }
 
 // ── SETTINGS ─────────────────────────────────────────────────────────────────
-function openSettings() {
-  document.getElementById('tp-webhook').value   = localStorage.getItem('ala_tp_webhook')   || '';
-  document.getElementById('lune-webhook').value = localStorage.getItem('ala_lune_webhook') || '';
+let autotradingOn = false;
+function openSettingsWrapper() {
+  // Show immediately from localStorage
+  document.getElementById('lune-webhook').value = localStorage.getItem('ala_gold_lune_webhook') || '';
+  document.getElementById('lune-strategy-id').value = localStorage.getItem('ala_gold_lune_strategy_id') || '';
   document.getElementById('settings-status').textContent = '';
+  const sw = document.getElementById('autotrading-sw');
+  autotradingOn = localStorage.getItem('ala_gold_autotrading') === 'true';
+  sw.className = 'toggle-switch' + (autotradingOn ? ' on' : '');
+  document.getElementById('at-status').textContent = autotradingOn ? 'ENABLED' : 'DISABLED';
+  document.getElementById('at-status').className = 'autotrading-status ' + (autotradingOn ? 'on' : 'off');
   document.getElementById('settings-overlay').classList.add('active');
+  // Then try to load fresh from VPS in background
+  fetch(VPS_URL + '/settings').then(r => r.json()).then(s => {
+    if (s.luneWebhook)    document.getElementById('lune-webhook').value = s.luneWebhook;
+    if (s.luneStrategyId) document.getElementById('lune-strategy-id').value = s.luneStrategyId;
+    if (s.autotrading !== undefined) {
+      autotradingOn = s.autotrading;
+      document.getElementById('autotrading-sw').className = 'toggle-switch' + (autotradingOn ? ' on' : '');
+      document.getElementById('at-status').textContent = autotradingOn ? 'ENABLED' : 'DISABLED';
+      document.getElementById('at-status').className = 'autotrading-status ' + (autotradingOn ? 'on' : 'off');
+    }
+  }).catch(() => {});
 }
-function closeSettings() {
-  document.getElementById('settings-overlay').classList.remove('active');
+function closeSettings() { document.getElementById('settings-overlay').classList.remove('active'); }
+function toggleAutotrading() {
+  autotradingOn = !autotradingOn;
+  const sw = document.getElementById('autotrading-sw');
+  sw.className = 'toggle-switch' + (autotradingOn ? ' on' : '');
+  document.getElementById('at-status').textContent = autotradingOn ? 'ENABLED' : 'DISABLED';
+  document.getElementById('at-status').className = 'autotrading-status ' + (autotradingOn ? 'on' : 'off');
+  localStorage.setItem('ala_gold_autotrading', autotradingOn);
 }
-function saveSettings() {
-  localStorage.setItem('ala_tp_webhook',   document.getElementById('tp-webhook').value.trim());
-  localStorage.setItem('ala_lune_webhook', document.getElementById('lune-webhook').value.trim());
+function updateAutotradingPill() {
+  const on = localStorage.getItem('ala_gold_autotrading') === 'true';
+  const pill = document.getElementById('autotrading-pill');
+  pill.textContent = on ? 'AUTOTRADING ON' : 'AUTOTRADING OFF';
+  pill.style.color = on ? 'var(--green)' : 'var(--text-muted)';
+  pill.style.borderColor = on ? 'var(--green-dim)' : 'var(--border)';
+  pill.style.background = on ? 'var(--green-dark)' : 'transparent';
+}
+async function saveSettings() {
+  const webhook    = document.getElementById('lune-webhook').value.trim();
+  const strategyId = document.getElementById('lune-strategy-id').value.trim();
+  localStorage.setItem('ala_gold_lune_webhook', webhook);
+  localStorage.setItem('ala_gold_autotrading', autotradingOn);
+  localStorage.setItem('ala_gold_lune_strategy_id', strategyId);
+  // Sync to VPS
+  try {
+    await fetch(VPS_URL + '/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ luneWebhook: webhook, luneStrategyId: strategyId, autotrading: autotradingOn })
+    });
+  } catch {}
   document.getElementById('settings-status').textContent = '✓ SAVED';
   document.getElementById('settings-status').style.color = 'var(--green)';
   setTimeout(() => { document.getElementById('settings-status').textContent = ''; }, 2000);
+  updateAutotradingPill();
 }
 function clearSettings() {
-  localStorage.removeItem('ala_tp_webhook');
-  localStorage.removeItem('ala_lune_webhook');
-  document.getElementById('tp-webhook').value   = '';
+  localStorage.removeItem('ala_gold_lune_webhook');
+  localStorage.removeItem('ala_gold_autotrading');
+  localStorage.removeItem('ala_gold_lune_strategy_id');
   document.getElementById('lune-webhook').value = '';
+  document.getElementById('lune-strategy-id').value = '';
+  autotradingOn = false;
+  document.getElementById('autotrading-sw').className = 'toggle-switch';
+  document.getElementById('at-status').textContent = 'DISABLED';
+  document.getElementById('at-status').className = 'autotrading-status off';
   document.getElementById('settings-status').textContent = 'CLEARED';
   document.getElementById('settings-status').style.color = 'var(--red)';
   setTimeout(() => { document.getElementById('settings-status').textContent = ''; }, 2000);
+  updateAutotradingPill();
 }
+
+// ── PASSWORD LOCK ────────────────────────────────────────────────────────────
+const ADMIN_PW = 'conflux2026';
+let adminUnlocked = false;
+let pwCallback = null;
+
+function requireAdmin(callback) {
+  if (adminUnlocked) { callback(); return; }
+  pwCallback = callback;
+  const overlay = document.getElementById('pw-overlay');
+  const input   = document.getElementById('pw-input');
+  const status  = document.getElementById('pw-status');
+  input.value = '';
+  input.className = 'pw-input';
+  status.textContent = '';
+  status.className = 'pw-status';
+  overlay.classList.add('active');
+  setTimeout(() => input.focus(), 100);
+}
+
+function checkPassword() {
+  const input  = document.getElementById('pw-input');
+  const box    = document.getElementById('pw-box');
+  const status = document.getElementById('pw-status');
+  if (input.value === ADMIN_PW) {
+    adminUnlocked = true;
+    input.className = 'pw-input ok';
+    status.textContent = '✓ ACCESS GRANTED';
+    status.className = 'pw-status ok';
+    box.classList.add('success');
+    setTimeout(() => {
+      document.getElementById('pw-overlay').classList.remove('active');
+      box.classList.remove('success');
+      if (pwCallback) { pwCallback(); pwCallback = null; }
+    }, 600);
+  } else {
+    input.value = '';
+    input.className = 'pw-input error';
+    status.textContent = '✕ INCORRECT PASSWORD';
+    status.className = 'pw-status err';
+    box.classList.add('shake');
+    setTimeout(() => {
+      box.classList.remove('shake');
+      input.className = 'pw-input';
+      status.textContent = '';
+      input.focus();
+    }, 500);
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('pw-overlay').classList.remove('active');
+});
+
+// Load autotrading state from VPS on page load (cross-browser sync)
+fetch(VPS_URL + '/settings').then(r => r.json()).then(s => {
+  if (s.autotrading !== undefined) {
+    autotradingOn = s.autotrading;
+    localStorage.setItem('ala_gold_autotrading', autotradingOn);
+    updateAutotradingPill();
+  }
+}).catch(() => {
+  // Fallback to localStorage if VPS unreachable
+  autotradingOn = localStorage.getItem('ala_gold_autotrading') === 'true';
+  updateAutotradingPill();
+});
 
 </script>
 
@@ -838,7 +1021,7 @@ function clearSettings() {
       </div>
     </div>
     <div class="popup-stats">
-      <div class="popup-stat">SETUP    <span style="color:var(--text)" id="ps-setup">—</span></div>
+      <div class="popup-stat">BIAS     <span style="color:var(--text)" id="ps-bias">—</span></div>
       <div class="popup-stat">ENTRY    <span style="color:var(--text)" id="ps-entry">—</span></div>
       <div class="popup-stat">STOP     <span class="red"   id="ps-sl">—</span></div>
       <div class="popup-stat">TARGET   <span style="color:var(--text)" id="ps-tp">—</span></div>
@@ -861,17 +1044,24 @@ function clearSettings() {
 <div class="settings-overlay" id="settings-overlay" onclick="if(event.target===this)closeSettings()">
   <div class="settings-box">
     <button class="settings-close" onclick="closeSettings()">✕</button>
-    <div class="settings-title">ALA // SETTINGS</div>
-    <div class="settings-sub">AUTOTRADING CONFIGURATION</div>
+    <div class="settings-title">ALA GOLD // SETTINGS</div>
+    <div class="settings-sub">AUTOTRADING + WEBHOOK CONFIGURATION</div>
 
-    <div class="settings-group">
-      <label class="settings-label">TradersPost Webhook URL</label>
-      <input class="settings-input" id="tp-webhook" type="text" placeholder="https://webhooks.traderspost.io/trading/...">
+    <div class="autotrading-toggle">
+      <div>
+        <div class="toggle-label">AUTOTRADING</div>
+        <div class="autotrading-status off" id="at-status">DISABLED</div>
+      </div>
+      <div class="toggle-switch" id="autotrading-sw" onclick="toggleAutotrading()"></div>
     </div>
 
     <div class="settings-group">
       <label class="settings-label">LuneFi Webhook URL</label>
       <input class="settings-input" id="lune-webhook" type="text" placeholder="https://app.lunefi.com/webhooks/...">
+    </div>
+    <div class="settings-group">
+      <label class="settings-label">LUNE Strategy ID</label>
+      <input class="settings-input" id="lune-strategy-id" type="text" placeholder="st_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
     </div>
 
     <div class="settings-row">
@@ -879,6 +1069,17 @@ function clearSettings() {
       <button class="btn danger" onclick="clearSettings()">CLEAR</button>
     </div>
     <div class="settings-status" id="settings-status"></div>
+  </div>
+</div>
+
+<!-- PASSWORD OVERLAY -->
+<div class="pw-overlay" id="pw-overlay">
+  <div class="pw-box" id="pw-box">
+    <div class="pw-title">ADMIN ACCESS</div>
+    <div class="pw-sub">ENTER PASSWORD TO CONTINUE</div>
+    <input class="pw-input" id="pw-input" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkPassword()">
+    <div class="pw-status" id="pw-status"></div>
+    <div class="pw-hint">ESC to cancel</div>
   </div>
 </div>
 
