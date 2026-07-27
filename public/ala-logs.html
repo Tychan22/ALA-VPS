@@ -589,7 +589,7 @@ function render() {
         <td style="color:var(--amber)">${rrDisplay}</td>
         <td><span class="badge ${badgeCls}">${t.orphan?'GHOST':result}</span></td>
         <td class="${pnlClass}">${pnlStr}</td>
-        <td><button class="btn danger" style="padding:3px 10px;font-size:9px" onclick="deleteTrade(${i})">✕</button></td>
+        <td><button class="btn danger" style="padding:3px 10px;font-size:9px" onclick="requireAdmin(()=>deleteTrade(${i}))">✕</button></td>
       </tr>`;
     }).join('');
   }
