@@ -154,6 +154,7 @@
   .event-entry-short { color:#ff2244; }
   .event-close-win  { color:var(--green); }
   .event-close-loss { color:var(--red); }
+  .event-settings   { color:#ffaa00; }
   .event-empty { color:#3a6e3a; text-align:center; padding:20px 0; }
 
   /* ── BUTTONS ── */
@@ -756,6 +757,7 @@ function eventClass(e) {
   if (e.type === 'range_detected') return 'event-range';
   if (e.type === 'entry') return /SHORT/i.test(e.message) ? 'event-entry-short' : 'event-entry-long';
   if (e.type === 'close') return /LOSS/i.test(e.message) ? 'event-close-loss' : 'event-close-win';
+  if (e.type === 'settings') return 'event-settings';
   return '';
 }
 

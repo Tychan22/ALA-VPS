@@ -561,6 +561,19 @@ app.post("/settings", (req, res) => {
     autotrading:    autotrading    !== undefined ? autotrading    : current.autotrading,
   };
   writeSettings(updated);
+
+  // Log to live feed only when a value actually changed — not on every save click
+  const last4 = (s) => (s && s.length >= 4) ? s.slice(-4) : (s || "????");
+  if (autotrading !== undefined && autotrading !== current.autotrading) {
+    pushEvent("settings", `AutoTrading ${autotrading ? "ON" : "OFF"}`);
+  }
+  if (luneWebhook !== undefined && luneWebhook !== current.luneWebhook && luneWebhook) {
+    pushEvent("settings", `LUNEFI WEBHOOK set "LUNEFI/${last4(luneWebhook)}"`);
+  }
+  if (luneStrategyId !== undefined && luneStrategyId !== current.luneStrategyId && luneStrategyId) {
+    pushEvent("settings", `LUNEFI Strategy ID set "ST_****${last4(luneStrategyId)}"`);
+  }
+
   res.json({ ok: true, settings: updated });
 });
 
