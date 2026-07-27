@@ -958,22 +958,44 @@ async function runTestSequence() {
   const originalText = btn.textContent;
   btn.disabled = true;
 
-  const entry = 4155.80, sl = 4150.30, tp = 4166.80, cts = 4, risk = 200;
-  const isWin = Math.random() > 0.5;
+  const isLong = Math.random() > 0.5;
+  const isWin  = Math.random() > 0.5;
+  const cts = 4, risk = 200;
+
+  // Long: entry low, sl below, tp above. Short: entry high, sl above, tp below.
+  const entry = 4155.80;
+  const sl = isLong ? 4150.30 : 4161.30;
+  const tp = isLong ? 4166.80 : 4144.80;
 
   try {
     btn.textContent = '🧪 RANGE...';
-    await postSignal({ action: 'range_detected', symbol: 'MGC1!', high: String(tp), low: String(sl), timestamp: String(Date.now()) });
+    const rangeHigh = isLong ? tp : sl;
+    const rangeLow  = isLong ? sl : tp;
+    await postSignal({ action: 'range_detected', symbol: 'MGC1!', high: String(rangeHigh), low: String(rangeLow), timestamp: String(Date.now()) });
 
     await new Promise(r => setTimeout(r, 2000));
-    btn.textContent = '🧪 ENTRY...';
-    await postSignal({ action: 'LongEntry', symbol: 'MGC1!', type: 'RANGE_BREAKOUT', entry: String(entry), sl: String(sl), tp: String(tp), cts: String(cts), risk: String(risk), timestamp: String(Date.now()) });
+    btn.textContent = isLong ? '🧪 LONG...' : '🧪 SHORT...';
+    await postSignal({
+      action: isLong ? 'LongEntry' : 'ShortEntry',
+      symbol: 'MGC1!',
+      type: isLong ? 'RANGE_BREAKOUT' : 'RANGE_BREAKDOWN',
+      entry: String(entry), sl: String(sl), tp: String(tp),
+      cts: String(cts), risk: String(risk), timestamp: String(Date.now())
+    });
 
     await new Promise(r => setTimeout(r, 3000));
     btn.textContent = isWin ? '🧪 WIN...' : '🧪 LOSS...';
     const exit = isWin ? tp : sl;
-    const pnl  = isWin ? +(Math.abs(tp - entry) * cts * 10).toFixed(2) : -(+(Math.abs(entry - sl) * cts * 10).toFixed(2));
-    await postSignal({ action: isWin ? 'tp' : 'sl', symbol: 'MGC1!', type: 'LONG', entry: String(entry), exit: String(exit), pnl: String(pnl), cts: String(cts), timestamp: String(Date.now()) });
+    const risk$ = Math.abs(entry - sl) * cts * 10;
+    const reward$ = Math.abs(tp - entry) * cts * 10;
+    const pnl = isWin ? +reward$.toFixed(2) : -(+risk$.toFixed(2));
+    await postSignal({
+      action: isWin ? 'tp' : 'sl',
+      symbol: 'MGC1!',
+      type: isLong ? 'LONG' : 'SHORT',
+      entry: String(entry), exit: String(exit), pnl: String(pnl),
+      cts: String(cts), timestamp: String(Date.now())
+    });
 
     btn.textContent = '✓ DONE';
     syncEventsFromVPS();
