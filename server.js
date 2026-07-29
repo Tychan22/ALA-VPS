@@ -317,6 +317,16 @@ async function handleClose(req, res, resultIn) {
   }
 
   try {
+    const openTrade = pending[symbol] || null;
+    const imgOpen   = openTrade ? openTrade.imgOpen : null;
+    if (pending[symbol]) delete pending[symbol];
+
+    // Respond to TradingView FIRST — the webhook was timing out because it had
+    // to wait on a chart screenshot + Telegram send before ever getting a
+    // response. Trade still logs and Telegram still sends either way; this
+    // just stops TradingView from marking a successful close as "failed".
+    res.json({ ok: true, action: result.toLowerCase(), symbol });
+
     const chartBuffer = await getChartBuffer(symbol);
     let imgClose = null;
     if (chartBuffer) {
@@ -325,10 +335,6 @@ async function handleClose(req, res, resultIn) {
     } else {
       await sendTelegram(msgLines.join("\n"));
     }
-
-    const openTrade = pending[symbol] || null;
-    const imgOpen   = openTrade ? openTrade.imgOpen : null;
-    if (pending[symbol]) delete pending[symbol];
 
     const trade = {
       symbol,
@@ -354,12 +360,11 @@ async function handleClose(req, res, resultIn) {
     trades.push(trade);
     writeTrades(trades);
 
-    res.json({ ok: true, action: result.toLowerCase(), symbol });
     pushEvent("close", `Trade Complete. ${result} logged in Ala Logs`);
     console.log(`[CLOSE] ${result} logged. pnl: ${pnl}`);
   } catch (err) {
     console.error("[CLOSE] Error:", err.message);
-    res.status(500).json({ ok: false, error: err.message });
+    if (!res.headersSent) res.status(500).json({ ok: false, error: err.message });
   }
 }
 
@@ -448,6 +453,10 @@ async function handleBE(req, res) {
   ].join("\n");
 
   try {
+    // Respond to TradingView FIRST, same fix as handleClose — don't make the
+    // webhook wait on chart/Telegram before acknowledging the close.
+    res.json({ ok: true, action: "be", symbol });
+
     const chartBuffer = await getChartBuffer(symbol);
     let imgClose = null;
     if (chartBuffer) {
@@ -482,11 +491,10 @@ async function handleBE(req, res) {
     trades.push(trade);
     writeTrades(trades);
 
-    res.json({ ok: true, action: "be", symbol });
     console.log(`[BE] PARTIAL logged. pnl: ${pnl}`);
   } catch (err) {
     console.error("[BE] Error:", err.message);
-    res.status(500).json({ ok: false, error: err.message });
+    if (!res.headersSent) res.status(500).json({ ok: false, error: err.message });
   }
 }
 
