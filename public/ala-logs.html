@@ -424,6 +424,11 @@ function dowLabel(dateStr) {
 }
 
 // ── MATH ──────────────────────────────────────────────────────────────────────
+function fmtMoney(v) {
+  if (v === null || v === undefined || isNaN(v)) return null;
+  const n = Math.round(parseFloat(v) * 100) / 100;
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 function calcRR(entry, sl, tp) {
   entry = parseFloat(entry); sl = parseFloat(sl); tp = parseFloat(tp);
   if (!entry || !sl || !tp) return null;
@@ -500,8 +505,7 @@ function render() {
 
   const totalPnl = closed.reduce((s,t)=>s+(t.pnl||0),0);
   const pnlEl    = document.getElementById('stat-pnl');
-  const pnlFmt   = totalPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  pnlEl.textContent = (totalPnl>=0?'+':'')+'$'+pnlFmt;
+  pnlEl.textContent = (totalPnl>=0?'+':'')+'$'+fmtMoney(totalPnl);
   pnlEl.className   = 'card-value '+(totalPnl>=0?'':'red');
 
   const pnls  = closed.map(t=>t.pnl||0);
@@ -542,15 +546,15 @@ function render() {
 
   // PnL chart
   const filteredPnl = filteredClosed.reduce((s,t)=>s+(t.pnl||0),0);
-  document.getElementById('pnl-total-label').textContent = (filteredPnl>=0?'+':'')+'$'+filteredPnl;
+  document.getElementById('pnl-total-label').textContent = (filteredPnl>=0?'+':'')+'$'+fmtMoney(filteredPnl);
   if (pnlChart) pnlChart.destroy();
   let running = 0;
   const pnlLabels = ['Start',...filteredClosed.map(t=>t.date||'—')];
-  const pnlValues = [0,...filteredClosed.map(t=>{ running+=(t.pnl||0); return running; })];
+  const pnlValues = [0,...filteredClosed.map(t=>{ running+=(t.pnl||0); return Math.round(running*100)/100; })];
   pnlChart = new Chart(document.getElementById('pnlchart').getContext('2d'), {
     type:'line',
     data:{ labels:pnlLabels, datasets:[{ data:pnlValues, borderColor:filteredPnl>=0?'#00ff41':'#ff2244', borderWidth:2, pointBackgroundColor:filteredPnl>=0?'#00ff41':'#ff2244', pointRadius:4, fill:true, backgroundColor:filteredPnl>=0?'rgba(0,255,65,0.06)':'rgba(255,34,68,0.06)', tension:0.3 }] },
-    options:{ scales:{ x:{ display:true, ticks:{color:'#3a6e3a',font:{family:'Share Tech Mono',size:9},maxRotation:45,maxTicksLimit:8}, grid:{display:false}, border:{color:'#1a2e1a'} }, y:{ ticks:{color:'#3a6e3a',font:{family:'Share Tech Mono',size:10},callback:v=>'$'+v}, grid:{color:'#0d150d'}, border:{color:'#1a2e1a'} } }, plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'$'+ctx.parsed.y}}}, animation:{duration:600} }
+    options:{ scales:{ x:{ display:true, ticks:{color:'#3a6e3a',font:{family:'Share Tech Mono',size:9},maxRotation:45,maxTicksLimit:8}, grid:{display:false}, border:{color:'#1a2e1a'} }, y:{ ticks:{color:'#3a6e3a',font:{family:'Share Tech Mono',size:10},callback:v=>'$'+fmtMoney(v)}, grid:{color:'#0d150d'}, border:{color:'#1a2e1a'} } }, plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'$'+fmtMoney(ctx.parsed.y)}}}, animation:{duration:600} }
   });
 
 
@@ -572,7 +576,7 @@ function render() {
     tbody.innerHTML = [...trades].reverse().map((t, ri) => {
       const i         = trades.length - 1 - ri;
       const result    = t.result || 'OPEN';
-      const pnlStr    = t.pnl!==null && t.pnl!==undefined ? (t.pnl>=0?'+$'+t.pnl:'-$'+Math.abs(t.pnl)) : '—';
+      const pnlStr    = t.pnl!==null && t.pnl!==undefined ? (t.pnl>=0?'+$'+fmtMoney(t.pnl):'-$'+fmtMoney(Math.abs(t.pnl))) : '—';
       const pnlClass  = result==='WIN'?'pnl-pos':result==='LOSS'?'pnl-neg':'pnl-open';
       const badgeCls  = t.orphan?'ghost':result==='WIN'?'win':result==='LOSS'?'loss':result==='PARTIAL'?'be':'open';
       const biasClass = t.direction==='SHORT'?'short':'long';
@@ -852,7 +856,7 @@ function openPopup(t) {
 
   const pnlEl = document.getElementById('ps-pnl');
   if (t.pnl!==null && t.pnl!==undefined) {
-    pnlEl.textContent = (t.pnl>=0?'+':'')+'$'+t.pnl;
+    pnlEl.textContent = (t.pnl>=0?'+':'')+'$'+fmtMoney(t.pnl);
     pnlEl.className   = t.pnl>=0?'':'red';
   } else { pnlEl.textContent='—'; }
   document.getElementById('ps-dur').textContent = t.ts&&t.tsClose ? formatDuration(t.tsClose-t.ts) : '—';
