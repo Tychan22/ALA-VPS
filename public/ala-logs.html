@@ -500,7 +500,8 @@ function render() {
 
   const totalPnl = closed.reduce((s,t)=>s+(t.pnl||0),0);
   const pnlEl    = document.getElementById('stat-pnl');
-  pnlEl.textContent = (totalPnl>=0?'+':'')+'$'+totalPnl;
+  const pnlFmt   = totalPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  pnlEl.textContent = (totalPnl>=0?'+':'')+'$'+pnlFmt;
   pnlEl.className   = 'card-value '+(totalPnl>=0?'':'red');
 
   const pnls  = closed.map(t=>t.pnl||0);
