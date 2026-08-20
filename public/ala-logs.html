@@ -477,11 +477,15 @@ let pnlChart   = null;
 const wrCharts = {};
 
 function render() {
-  let trades = getTrades();
-  if (currentResultFilter)  trades = trades.filter(t => t.result    === currentResultFilter);
-  if (currentBiasFilter)    trades = trades.filter(t => t.direction === currentBiasFilter);
-  if (currentDowFilter)     trades = trades.filter(t => dowLabel(t.date) === currentDowFilter);
+  // Filter against a SINGLE snapshot of trades so the index we hand to
+  // openPopupByIndex()/deleteTrade() always points at the right row in
+  // that same snapshot, even when a bias/day/result filter is active.
   const allTrades = getTrades();
+  let filteredItems = allTrades.map((t, idx) => ({ t, idx }));
+  if (currentResultFilter)  filteredItems = filteredItems.filter(o => o.t.result    === currentResultFilter);
+  if (currentBiasFilter)    filteredItems = filteredItems.filter(o => o.t.direction === currentBiasFilter);
+  if (currentDowFilter)     filteredItems = filteredItems.filter(o => dowLabel(o.t.date) === currentDowFilter);
+  const trades = filteredItems.map(o => o.t);
   const filteredClosed = trades.filter(t => ['WIN','LOSS','PARTIAL'].includes(t.result));
 
   const closed   = allTrades.filter(t => ['WIN','LOSS','PARTIAL'].includes(t.result));
@@ -573,8 +577,8 @@ function render() {
     empty.style.display = 'block';
   } else {
     empty.style.display = 'none';
-    tbody.innerHTML = [...trades].reverse().map((t, ri) => {
-      const i         = trades.length - 1 - ri;
+    tbody.innerHTML = [...filteredItems].reverse().map(({ t, idx }) => {
+      const i         = idx; // index into the FULL (unfiltered) trades array
       const result    = t.result || 'OPEN';
       const pnlStr    = t.pnl!==null && t.pnl!==undefined ? (t.pnl>=0?'+$'+fmtMoney(t.pnl):'-$'+fmtMoney(Math.abs(t.pnl))) : '—';
       const pnlClass  = result==='WIN'?'pnl-pos':result==='LOSS'?'pnl-neg':'pnl-open';
@@ -693,9 +697,13 @@ function renderCalendar(trades) {
 
 // ── DELETE ────────────────────────────────────────────────────────────────────
 async function deleteTrade(i) {
+  // i is always an index into the FULL unfiltered trades array (see render()).
+  // Re-filtering here before splicing would (a) delete the wrong trade whenever
+  // a bias/day filter was active, since the row's index no longer lined up with
+  // the re-filtered array, and (b) overwrite localStorage with just that filtered
+  // subset, silently discarding every trade that didn't match the active filter.
   try { await fetch(VPS_URL+'/trades/'+i, {method:'DELETE'}); } catch {}
   let trades = getTrades();
-  if (currentResultFilter) trades = trades.filter(t=>t.result===currentResultFilter);
   trades.splice(i,1);
   saveTrades(trades);
   render();
@@ -819,8 +827,9 @@ function formatDuration(ms) {
 
 // ── POPUP ─────────────────────────────────────────────────────────────────────
 function openPopupByIndex(i) {
-  let trades = getTrades();
-  if (currentResultFilter) trades = trades.filter(t=>t.result===currentResultFilter);
+  // i is always an index into the FULL unfiltered trades array (see render()),
+  // so no filter needs to be (or should be) re-applied here.
+  const trades = getTrades();
   const t = trades[i];
   if (!t) return;
   openPopup(t);
